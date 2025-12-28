@@ -7,7 +7,20 @@ servisine gönderir ve otomasyonu kontrol eder.
 import sys
 import os
 import json
+import threading
+import tempfile
+import webbrowser
 import requests
+
+from app_meta import (
+    APP_DISPLAY_NAME,
+    APP_ID,
+    LEGACY_APP_ID,
+    LEGACY_CONFIG_FILE,
+    UPDATE_REPO_DEFAULT,
+    __version__,
+)
+from updater import UpdateInfo, check_for_update, download_asset
 
 from PyQt6.QtGui import QIcon
 from PyQt6.QtWidgets import (
@@ -26,8 +39,9 @@ from PyQt6.QtWidgets import (
     QTabWidget,
     QGroupBox,
     QFormLayout,
+    QProgressDialog,
 )
-from PyQt6.QtCore import Qt, QTimer, QObject, QEvent
+from PyQt6.QtCore import Qt, QTimer, QObject, QEvent, pyqtSignal
 
 from win10toast import ToastNotifier
 
@@ -37,10 +51,6 @@ from rune_presets_dialog import RunePresetsDialog
 
 API_BASE = "http://127.0.0.1:8000"  # FastAPI sunucunun adresi
 API_TIMEOUT_SEC = 3
-APP_DISPLAY_NAME = "RunePilot"
-APP_ID = "RunePilot"
-LEGACY_APP_ID = "LoLAutomation"
-LEGACY_CONFIG_FILE = "user_config.json"
 
 class _SearchableComboLineEditFilter(QObject):
     def __init__(self, combo: QComboBox):
@@ -89,6 +99,12 @@ class _SearchableComboLineEditFilter(QObject):
                     obj.selectAll()
 
         return False
+
+
+class _UpdateEmitter(QObject):
+    update_available = pyqtSignal(object)
+    download_finished = pyqtSignal(bool, str, str)
+
 
 def make_combo_searchable(combo: QComboBox, *, placeholder: str = "Ara...") -> None:
     """QComboBox'a yaz-ara (type-ahead) davranışı ekler."""
@@ -357,6 +373,14 @@ class MainWindow(QMainWindow):
         self.phase_timer = QTimer(self)
         self.phase_timer.timeout.connect(self.check_game_phase)
         self.phase_timer.start(2000)
+
+        # Otomatik güncelleme kontrolü (GitHub Releases)
+        self._update_emitter = _UpdateEmitter()
+        self._update_emitter.update_available.connect(self._on_update_available)
+        self._update_emitter.download_finished.connect(self._on_update_download_finished)
+        self._update_progress_dialog: QProgressDialog | None = None
+        self._update_check_started = False
+        self._schedule_update_check()
 
     def _set_combo_item_enabled(self, combo: QComboBox, index: int, enabled: bool) -> None:
         model = combo.model()
@@ -1472,6 +1496,153 @@ class MainWindow(QMainWindow):
         except Exception as e:
             print(f"Config save error: {e}")
 
+    def _schedule_update_check(self) -> None:
+        """
+        Açılışta GitHub Releases üzerinden yeni sürüm var mı diye kontrol eder.
+
+        Notlar:
+        - Varsayılan repo: `UPDATE_REPO_DEFAULT` (ENV ile override edilebilir).
+        - `RUNEPILOT_DISABLE_AUTO_UPDATE=1` ile tamamen kapatılabilir.
+        """
+        if self._update_check_started:
+            return
+
+        disable = (os.getenv("RUNEPILOT_DISABLE_AUTO_UPDATE") or "").strip().lower()
+        if disable in ("1", "true", "yes", "on"):
+            return
+
+        repo = (os.getenv("RUNEPILOT_UPDATE_REPO") or UPDATE_REPO_DEFAULT or "").strip()
+        if not repo:
+            return
+
+        self._update_check_started = True
+        QTimer.singleShot(1500, self._check_updates_async)
+
+    def _check_updates_async(self) -> None:
+        repo = (os.getenv("RUNEPILOT_UPDATE_REPO") or UPDATE_REPO_DEFAULT or "").strip()
+        if not repo:
+            return
+        token = (os.getenv("RUNEPILOT_GITHUB_TOKEN") or os.getenv("GITHUB_TOKEN") or "").strip() or None
+
+        def worker() -> None:
+            try:
+                info = check_for_update(
+                    current_version=__version__,
+                    repo=repo,
+                    token=token,
+                    timeout_sec=4.0,
+                )
+            except Exception:
+                info = None
+
+            if info is not None:
+                try:
+                    self._update_emitter.update_available.emit(info)
+                except Exception:
+                    pass
+
+        threading.Thread(target=worker, daemon=True).start()
+
+    def _on_update_available(self, info_obj: object) -> None:
+        try:
+            info: UpdateInfo = info_obj  # type: ignore[assignment]
+        except Exception:
+            return
+
+        msg = QMessageBox(self)
+        msg.setIcon(QMessageBox.Icon.Information)
+        msg.setWindowTitle("Güncelleme Mevcut")
+
+        msg.setText(
+            f"{APP_DISPLAY_NAME} için yeni sürüm bulundu.\n\n"
+            f"Yüklü: {info.current_version}\n"
+            f"Yeni: {info.latest_version}"
+        )
+
+        if info.release_notes:
+            try:
+                msg.setDetailedText(info.release_notes)
+            except Exception:
+                pass
+
+        if info.asset_download_url:
+            primary_btn = msg.addButton("Güncelle", QMessageBox.ButtonRole.AcceptRole)
+        else:
+            primary_btn = msg.addButton("Release Sayfasını Aç", QMessageBox.ButtonRole.AcceptRole)
+        msg.addButton("Daha Sonra", QMessageBox.ButtonRole.RejectRole)
+        msg.setDefaultButton(primary_btn)
+
+        msg.exec()
+        if msg.clickedButton() != primary_btn:
+            return
+
+        if info.asset_download_url:
+            self._start_update_download(info)
+        else:
+            self._safe_open_url(info.release_html_url)
+
+    def _start_update_download(self, info: UpdateInfo) -> None:
+        url = (info.asset_download_url or "").strip()
+        if not url:
+            self._safe_open_url(info.release_html_url)
+            return
+
+        token = (os.getenv("RUNEPILOT_GITHUB_TOKEN") or os.getenv("GITHUB_TOKEN") or "").strip() or None
+        asset_name = (info.asset_name or f"RunePilotSetup-{info.latest_version}.exe").strip()
+        dest_path = os.path.join(tempfile.gettempdir(), asset_name)
+
+        try:
+            dlg = QProgressDialog("Güncelleme indiriliyor...", None, 0, 0, self)
+            dlg.setWindowTitle("Güncelleme")
+            dlg.setWindowModality(Qt.WindowModality.ApplicationModal)
+            dlg.setCancelButton(None)
+            dlg.setMinimumDuration(0)
+            dlg.show()
+            self._update_progress_dialog = dlg
+        except Exception:
+            self._update_progress_dialog = None
+
+        def worker() -> None:
+            ok, err = download_asset(url, dest_path, token=token, timeout_sec=300.0)
+            try:
+                self._update_emitter.download_finished.emit(bool(ok), str(dest_path), str(err or ""))
+            except Exception:
+                pass
+
+        threading.Thread(target=worker, daemon=True).start()
+
+    def _on_update_download_finished(self, ok: bool, path: str, err: str) -> None:
+        if self._update_progress_dialog is not None:
+            try:
+                self._update_progress_dialog.close()
+            except Exception:
+                pass
+            self._update_progress_dialog = None
+
+        if not ok:
+            QMessageBox.critical(self, "Güncelleme", f"Güncelleme indirilemedi:\n\n{err or 'Bilinmeyen hata'}")
+            return
+
+        try:
+            os.startfile(path)
+        except Exception as e:
+            QMessageBox.critical(self, "Güncelleme", f"Installer başlatılamadı:\n\n{e}")
+            return
+
+        try:
+            QApplication.instance().quit()
+        except Exception:
+            pass
+
+    def _safe_open_url(self, url: str | None) -> None:
+        url = (url or "").strip()
+        if not url:
+            return
+        try:
+            webbrowser.open(url)
+        except Exception:
+            pass
+
     def set_combo_by_data(self, combo: QComboBox, value):
         if value is None:
             combo.setCurrentIndex(0) # "Seçiniz" usually
@@ -1771,6 +1942,8 @@ def main() -> None:
     app.setStyleSheet(STYLESHEET)
     try:
         app.setApplicationDisplayName(APP_DISPLAY_NAME)
+        app.setApplicationName(APP_ID)
+        app.setApplicationVersion(__version__)
         app.setWindowIcon(QIcon(resource_path("assets/app_icon.png")))
     except Exception:
         pass

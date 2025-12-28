@@ -19,6 +19,7 @@ from fastapi import FastAPI
 from pydantic import BaseModel, Field
 
 from lcu import lcu_request
+from app_meta import __version__
 
 app = FastAPI()
 
@@ -639,7 +640,7 @@ def get_champions():
 @app.get("/health")
 def health():
     """Basit health-check endpoint'i."""
-    return {"status": "ok", "running": RUNNING}
+    return {"status": "ok", "running": RUNNING, "version": __version__}
 
 def get_gameflow_phase_safe() -> str | None:
     """LCU gameflow-phase okur; hata durumunda `None` döndürür."""

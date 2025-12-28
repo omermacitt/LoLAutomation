@@ -32,8 +32,19 @@ python -m PyInstaller --clean -y run_app.spec
 
 Çıktı: `dist/RunePilot.exe`
 
+## Installer Derleme (Inno Setup)
+
+- Gereksinim: Inno Setup 6 (`ISCC.exe`)
+
+```powershell
+powershell -ExecutionPolicy Bypass -File installer\build_installer.ps1
+```
+
+Çıktı: `dist/installer/RunePilotSetup-<version>.exe`
+
 ## Notlar
 
 - `runes.json` uygulama ile birlikte gelir ve önerilen rün verisini içerir.
 - Kullanıcı ayarları (lokalde): `%APPDATA%\\RunePilot\\user_config.json`
 - LoL lockfile yolu farklıysa `LOL_LOCKFILE` ortam değişkeni ile override edebilirsiniz.
+- Otomatik güncelleme (GitHub Releases): varsayılan repo `omermacitt/LoLAutomation` (override: `RUNEPILOT_UPDATE_REPO=owner/repo`, kapatmak için: `RUNEPILOT_DISABLE_AUTO_UPDATE=1`)

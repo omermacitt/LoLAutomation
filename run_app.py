@@ -14,8 +14,7 @@ import traceback
 # Ensure the current directory is in sys.path so we can import modules
 sys.path.append(os.path.abspath(os.path.dirname(__file__)))
 
-APP_DISPLAY_NAME = "RunePilot"
-APP_ID = "RunePilot"
+from app_meta import APP_DISPLAY_NAME, APP_ID
 
 def get_log_path() -> str:
     """Uygulama log dosyası yolunu (`%APPDATA%\\RunePilot\\run_app.log`) döndürür."""
