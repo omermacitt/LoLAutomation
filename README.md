@@ -2,6 +2,8 @@
 
 League of Legends istemcisi (LCU API) ile entegre çalışan; **FastAPI** (arka plan servisi) + **PyQt6** (masaüstü arayüz) tabanlı otomasyon aracıdır.
 
+Detaylı bilgi ve kullanım adımları için [`readme.txt`](readme.txt) dosyasına bakın.
+
 ## Gereksinimler
 
 - Windows
