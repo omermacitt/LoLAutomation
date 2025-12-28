@@ -31,6 +31,10 @@ MAIN_STYLE_IDS: set[int] = {8000, 8100, 8200, 8300, 8400}
 STAT_MODS_STYLE_ID = 5000
 DEFAULT_ICON_SIZE = QSize(24, 24)
 
+# Cache perk/style data per process to avoid repeated LCU calls.
+_PERK_STYLES_CACHE: list[dict[str, Any]] | None = None
+_PERKS_CACHE: list[dict[str, Any]] | None = None
+
 
 def _safe_int(value: Any) -> int | None:
     """Değeri int'e çevirmeyi dener; mümkün değilse `None` döndürür."""
@@ -85,16 +89,23 @@ def _get_slot_runes(slot: Any) -> list[Any]:
 
 def _fetch_perk_styles() -> list[dict[str, Any]]:
     """LCU üzerinden rune style listesini okur."""
+    global _PERK_STYLES_CACHE
+    if _PERK_STYLES_CACHE is not None:
+        return _PERK_STYLES_CACHE
     res = lcu_request("GET", "/lol-perks/v1/styles")
     res.raise_for_status()
     data = res.json()
     if not isinstance(data, list):
         raise ValueError("Unexpected response from /lol-perks/v1/styles")
+    _PERK_STYLES_CACHE = data
     return data
 
 
 def _fetch_perks() -> list[dict[str, Any]]:
     """LCU üzerinden perk listesini okur (farklı endpoint'lere fallback)."""
+    global _PERKS_CACHE
+    if _PERKS_CACHE is not None:
+        return _PERKS_CACHE
     endpoints = (
         "/lol-perks/v1/perks",
         "/lol-game-data/assets/v1/perks.json",
@@ -106,8 +117,10 @@ def _fetch_perks() -> list[dict[str, Any]]:
             res.raise_for_status()
             data = res.json()
             if isinstance(data, list):
+                _PERKS_CACHE = data
                 return data
             if isinstance(data, dict) and isinstance(data.get("perks"), list):
+                _PERKS_CACHE = data["perks"]
                 return data["perks"]
             last_error = ValueError(f"Unexpected response from {endpoint}")
         except Exception as e:
@@ -147,9 +160,11 @@ class RunePageDialog(QDialog):
         *,
         champion_name: str,
         existing_page: dict[str, Any] | None = None,
+        show_buttons: bool = True,
         parent: QWidget | None = None,
     ):
         super().__init__(parent)
+        self._show_buttons = bool(show_buttons)
         self.setWindowTitle(f"Custom Runes - {champion_name}")
         self.setMinimumWidth(520)
 
@@ -242,17 +257,18 @@ class RunePageDialog(QDialog):
 
         root.addWidget(self.summary_label)
 
-        buttons = QDialogButtonBox(
-            QDialogButtonBox.StandardButton.Save | QDialogButtonBox.StandardButton.Cancel
-        )
-        self._delete_button = buttons.addButton("Remove Custom", QDialogButtonBox.ButtonRole.DestructiveRole)
-        buttons.accepted.connect(self._on_save)
-        buttons.rejected.connect(self.reject)
-        self._delete_button.clicked.connect(self._on_delete)
+        if self._show_buttons:
+            buttons = QDialogButtonBox(
+                QDialogButtonBox.StandardButton.Save | QDialogButtonBox.StandardButton.Cancel
+            )
+            self._delete_button = buttons.addButton("Remove Custom", QDialogButtonBox.ButtonRole.DestructiveRole)
+            buttons.accepted.connect(self._on_save)
+            buttons.rejected.connect(self.reject)
+            self._delete_button.clicked.connect(self._on_delete)
 
-        buttons_row = QHBoxLayout()
-        buttons_row.addWidget(buttons)
-        root.addLayout(buttons_row)
+            buttons_row = QHBoxLayout()
+            buttons_row.addWidget(buttons)
+            root.addLayout(buttons_row)
 
     def _wire_signals(self) -> None:
         self.primary_style_combo.currentIndexChanged.connect(self._refresh_all)

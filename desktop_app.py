@@ -32,7 +32,8 @@ from PyQt6.QtCore import Qt, QTimer, QObject, QEvent
 from win10toast import ToastNotifier
 
 from lcu import lcu_request  # mevcut projenizdeki lcu.py'den
-from runes_dialog import RunePageDialog
+from skins_dialog import SkinSelectDialog
+from rune_presets_dialog import RunePresetsDialog
 
 API_BASE = "http://127.0.0.1:8000"  # FastAPI sunucunun adresi
 API_TIMEOUT_SEC = 3
@@ -272,10 +273,16 @@ class MainWindow(QMainWindow):
         self.role_combos = {}
         self.role_ban_combos = {}
         self.role_rune_buttons = {}
+        self.role_rune_select_combos = {}
+        self.role_skin_buttons = {}
         # role -> [ (spell1_combo, spell2_combo), ... ] (champion rows)
         self.role_champion_spell_combos = {}
-        # role -> champId(str) -> rune page dict
+        # champId(str) -> slot(str: "1"|"2"|"3") -> rune page dict
         self.custom_runes = {}
+        # champId(str) -> 0(recommended) | 1 | 2 | 3
+        self.rune_selection = {}
+        # role -> champId(str) -> skinId(int)
+        self.custom_skins = {}
         # role -> champId(str) -> {"spell1Id": int|None, "spell2Id": int|None}
         self.custom_summoner_spells = {}
         self._updating_champion_spells = False
@@ -637,16 +644,37 @@ class MainWindow(QMainWindow):
         row_layout.addWidget(spell1_combo)
         row_layout.addWidget(spell2_combo)
 
+        rune_select = QComboBox()
+        rune_select.setFixedWidth(140)
+        rune_select.setToolTip("Bu şampiyon için kullanılacak rün sayfası")
+        rune_select.currentIndexChanged.connect(
+            lambda _=0, rk=role_key, i=index: self.on_rune_selection_changed(rk, i)
+        )
+        row_layout.addWidget(rune_select)
+
+        self.role_rune_select_combos.setdefault(role_key, [None, None, None])
+        self.role_rune_select_combos[role_key][index] = rune_select
+
         button = QPushButton("Rünler")
         button.setFixedWidth(95)
-        button.clicked.connect(lambda _=False, rk=role_key, i=index: self.edit_custom_runes(rk, i))
+        button.clicked.connect(lambda _=False, rk=role_key, i=index: self.open_rune_presets_dialog(rk, i))
         row_layout.addWidget(button)
 
         self.role_rune_buttons.setdefault(role_key, [None, None, None])
         self.role_rune_buttons[role_key][index] = button
 
+        skin_button = QPushButton("Kostüm")
+        skin_button.setFixedWidth(95)
+        skin_button.clicked.connect(lambda _=False, rk=role_key, i=index: self.edit_custom_skin(rk, i))
+        row_layout.addWidget(skin_button)
+
+        self.role_skin_buttons.setdefault(role_key, [None, None, None])
+        self.role_skin_buttons[role_key][index] = skin_button
+
         combo.currentIndexChanged.connect(lambda _=0, rk=role_key, i=index: self.on_champion_changed(rk, i))
         self.update_rune_button(role_key, index)
+        self.update_rune_select_combo(role_key, index)
+        self.update_skin_button(role_key, index)
         return row
 
     def update_rune_button(self, role_key: str, index: int) -> None:
@@ -667,14 +695,215 @@ class MainWindow(QMainWindow):
             return
 
         button.setEnabled(True)
-        has_custom = str(champ_id) in (self.custom_runes.get(role_key) or {})
-        button.setText("Rünler (Özel)" if has_custom else "Rünler")
-        button.setToolTip("Özel rün kaydedildi" if has_custom else "Önerilen rün kullanılacak")
+        presets = self.custom_runes.get(str(champ_id))
+        presets = presets if isinstance(presets, dict) else {}
+        preset_count = sum(1 for k, v in presets.items() if str(k) in ("1", "2", "3") and isinstance(v, dict))
+        button.setText(f"Rünler ({preset_count})" if preset_count else "Rünler")
+        button.setToolTip(
+            f"{preset_count} adet özel rün preset'i kaydedildi" if preset_count else "Önerilen rün kullanılacak"
+        )
 
     def update_all_rune_buttons(self) -> None:
         for role_key, buttons in (self.role_rune_buttons or {}).items():
             for i in range(min(3, len(buttons))):
                 self.update_rune_button(role_key, i)
+
+    def update_rune_select_combo(self, role_key: str, index: int) -> None:
+        select_combos = self.role_rune_select_combos.get(role_key) or []
+        if index >= len(select_combos) or select_combos[index] is None:
+            return
+        select_combo = select_combos[index]
+
+        combos = self.role_combos.get(role_key) or []
+        if index >= len(combos):
+            return
+        champ_id = combos[index].currentData()
+
+        select_combo.blockSignals(True)
+        try:
+            select_combo.clear()
+            select_combo.addItem("Önerilen", 0)
+
+            if not champ_id:
+                select_combo.setEnabled(False)
+                select_combo.setCurrentIndex(0)
+                return
+
+            champ_key = str(champ_id)
+            presets = self.custom_runes.get(champ_key)
+            presets = presets if isinstance(presets, dict) else {}
+            for slot in (1, 2, 3):
+                page = presets.get(str(slot))
+                if isinstance(page, dict):
+                    raw_name = page.get("name")
+                    name = str(raw_name).strip() if raw_name is not None else ""
+                    name = " ".join(name.split())
+                    label = f"Özel {slot}: {name}" if name else f"Özel {slot}"
+                    select_combo.addItem(label, slot)
+
+            raw_selection = self.rune_selection.get(champ_key, 0) if isinstance(self.rune_selection, dict) else 0
+            try:
+                selection = int(raw_selection or 0)
+            except (TypeError, ValueError):
+                selection = 0
+            if selection not in (0, 1, 2, 3):
+                selection = 0
+            if selection != 0 and str(selection) not in presets:
+                selection = 0
+
+            idx = select_combo.findData(selection)
+            if idx >= 0:
+                select_combo.setCurrentIndex(idx)
+            else:
+                select_combo.setCurrentIndex(0)
+
+            # Disable if there is no alternative to "Önerilen".
+            select_combo.setEnabled(select_combo.count() > 1)
+        finally:
+            select_combo.blockSignals(False)
+
+    def update_all_rune_select_combos(self) -> None:
+        for role_key, combos in (self.role_rune_select_combos or {}).items():
+            for i in range(min(3, len(combos))):
+                self.update_rune_select_combo(role_key, i)
+
+    def on_rune_selection_changed(self, role_key: str, index: int) -> None:
+        combos = self.role_combos.get(role_key) or []
+        if index >= len(combos):
+            return
+
+        champ_id = combos[index].currentData()
+        if not champ_id:
+            return
+
+        select_combos = self.role_rune_select_combos.get(role_key) or []
+        if index >= len(select_combos) or select_combos[index] is None:
+            return
+
+        try:
+            selection_val = int(select_combos[index].currentData() or 0)
+        except (TypeError, ValueError):
+            selection_val = 0
+
+        if selection_val not in (0, 1, 2, 3):
+            selection_val = 0
+
+        champ_key = str(champ_id)
+        if selection_val == 0:
+            # Keep config small; absence means "recommended".
+            self.rune_selection.pop(champ_key, None)
+        else:
+            self.rune_selection[champ_key] = selection_val
+
+        self.save_config()
+        # Champion-based: reflect the same selection across all rows that use this champion.
+        self.update_all_rune_select_combos()
+        self.update_all_rune_buttons()
+
+    def _save_rune_preset_for_champion(self, champ_id: int, slot: int, page: dict) -> None:
+        champ_key = str(int(champ_id))
+        slot_int = int(slot)
+        if slot_int not in (1, 2, 3):
+            return
+
+        self.custom_runes.setdefault(champ_key, {})[str(slot_int)] = self._clone_rune_page(page)
+        self.rune_selection[champ_key] = slot_int
+        self.save_config()
+        self.update_all_rune_buttons()
+        self.update_all_rune_select_combos()
+
+    def _delete_rune_preset_for_champion(self, champ_id: int, slot: int) -> None:
+        champ_key = str(int(champ_id))
+        slot_int = int(slot)
+        if slot_int not in (1, 2, 3):
+            return
+
+        presets = self.custom_runes.get(champ_key)
+        if isinstance(presets, dict):
+            presets.pop(str(slot_int), None)
+            if not presets:
+                self.custom_runes.pop(champ_key, None)
+
+        if self.rune_selection.get(champ_key) == slot_int:
+            self.rune_selection.pop(champ_key, None)
+
+        self.save_config()
+        self.update_all_rune_buttons()
+        self.update_all_rune_select_combos()
+
+    def open_rune_presets_dialog(self, role_key: str, index: int) -> None:
+        combos = self.role_combos.get(role_key) or []
+        if index >= len(combos):
+            return
+
+        champ_combo = combos[index]
+        champ_id = champ_combo.currentData()
+        if not champ_id:
+            QMessageBox.warning(self, "Eksik Seçim", "Önce şampiyon seçmelisiniz.")
+            return
+
+        try:
+            champ_id_int = int(champ_id)
+        except (TypeError, ValueError):
+            QMessageBox.warning(self, "Geçersiz", "Geçersiz şampiyon ID.")
+            return
+
+        champ_name = champ_combo.currentText()
+        champ_key = str(champ_id_int)
+        presets = self.custom_runes.get(champ_key)
+        presets = presets if isinstance(presets, dict) else {}
+
+        initial_slot = 1
+        try:
+            sel = int(self.rune_selection.get(champ_key, 0) or 0)
+        except (TypeError, ValueError):
+            sel = 0
+        if sel in (1, 2, 3) and isinstance(presets.get(str(sel)), dict):
+            initial_slot = sel
+        else:
+            for s in (1, 2, 3):
+                if isinstance(presets.get(str(s)), dict):
+                    initial_slot = s
+                    break
+
+        dlg = RunePresetsDialog(
+            champion_id=champ_id_int,
+            champion_name=champ_name,
+            existing_presets=presets,
+            initial_slot=initial_slot,
+            on_save_preset=lambda slot, page, cid=champ_id_int: self._save_rune_preset_for_champion(cid, slot, page),
+            on_delete_preset=lambda slot, cid=champ_id_int: self._delete_rune_preset_for_champion(cid, slot),
+            parent=self,
+        )
+        dlg.exec()
+
+    def update_skin_button(self, role_key: str, index: int) -> None:
+        buttons = self.role_skin_buttons.get(role_key) or []
+        if index >= len(buttons) or buttons[index] is None:
+            return
+        button = buttons[index]
+
+        combos = self.role_combos.get(role_key) or []
+        if index >= len(combos):
+            return
+        champ_id = combos[index].currentData()
+
+        if not champ_id:
+            button.setText("Kostüm")
+            button.setToolTip("Önce şampiyon seçin")
+            return
+
+        cid = str(champ_id)
+        role_skins = self.custom_skins.get(role_key) if isinstance(self.custom_skins, dict) else None
+        role_skins = role_skins if isinstance(role_skins, dict) else {}
+        has_custom = cid in role_skins
+        button.setText("Kostüm (Özel)" if has_custom else "Kostüm")
+        button.setToolTip("Özel kostüm seçildi" if has_custom else "Varsayılan kostüm kullanılacak")
+
+    def update_all_skin_buttons(self) -> None:
+        for role_key, buttons in (self.role_skin_buttons or {}).items():
+            for i in range(min(3, len(buttons))):
+                self.update_skin_button(role_key, i)
 
     def _clone_rune_page(self, page: dict) -> dict:
         cloned = dict(page or {})
@@ -683,14 +912,18 @@ class MainWindow(QMainWindow):
             cloned["selectedPerkIds"] = list(perk_ids)
         return cloned
 
-    def _find_custom_page_any_role(self, champ_id: int) -> tuple[str, dict] | None:
+    def _find_custom_skin_any_role(self, champ_id: int) -> tuple[str, int] | None:
         cid = str(champ_id)
-        for rk, pages in (self.custom_runes or {}).items():
-            if not isinstance(pages, dict):
+        for rk, skins in (self.custom_skins or {}).items():
+            if not isinstance(skins, dict):
                 continue
-            page = pages.get(cid)
-            if isinstance(page, dict):
-                return rk, page
+            val = skins.get(cid)
+            if val is None:
+                continue
+            try:
+                return rk, int(val)
+            except (TypeError, ValueError):
+                continue
         return None
 
     def _roles_where_champion_selected(self, champ_id: int) -> set[str]:
@@ -702,19 +935,6 @@ class MainWindow(QMainWindow):
                     break
         return roles
 
-    def _rune_page_equal(self, a: dict | None, b: dict | None) -> bool:
-        if a is None or b is None:
-            return False
-        try:
-            return (
-                str(a.get("name") or "") == str(b.get("name") or "")
-                and int(a.get("primaryStyleId")) == int(b.get("primaryStyleId"))
-                and int(a.get("subStyleId")) == int(b.get("subStyleId"))
-                and list(a.get("selectedPerkIds") or []) == list(b.get("selectedPerkIds") or [])
-            )
-        except Exception:
-            return a == b
-
     def on_champion_changed(self, role_key: str, index: int) -> None:
         combos = self.role_combos.get(role_key) or []
         if index >= len(combos):
@@ -722,21 +942,89 @@ class MainWindow(QMainWindow):
 
         champ_id = combos[index].currentData()
         if champ_id:
-            role_pages = self.custom_runes.get(role_key) if isinstance(self.custom_runes, dict) else None
-            role_pages = role_pages if isinstance(role_pages, dict) else {}
+            role_skins = self.custom_skins.get(role_key) if isinstance(self.custom_skins, dict) else None
+            role_skins = role_skins if isinstance(role_skins, dict) else {}
 
-            # If this role doesn't have a custom page yet but another role does,
+            # If this role doesn't have a custom skin yet but another role does,
             # copy it so the same champion behaves consistently across roles.
-            if str(champ_id) not in role_pages:
-                found = self._find_custom_page_any_role(champ_id)
-                if found is not None:
-                    _src_role, page = found
-                    self.custom_runes.setdefault(role_key, {})[str(champ_id)] = self._clone_rune_page(page)
+            if str(champ_id) not in role_skins:
+                found_skin = self._find_custom_skin_any_role(champ_id)
+                if found_skin is not None:
+                    _src_role, skin_id = found_skin
+                    self.custom_skins.setdefault(role_key, {})[str(champ_id)] = int(skin_id)
 
         self.update_champion_spell_row(role_key, index)
         self.update_all_rune_buttons()
+        self.update_all_rune_select_combos()
+        self.update_all_skin_buttons()
 
     def edit_custom_runes(self, role_key: str, index: int) -> None:
+        # Backward-compatible entry point: open the preset menu.
+        self.open_rune_presets_dialog(role_key, index)
+
+    def _load_skin_options_for_champion(self, champ_id: int) -> list[tuple[int, str]]:
+        """
+        Seçili şampiyon için kostüm seçeneklerini döndürür.
+
+        - Varsayılan (base) her zaman eklenir.
+        - Ek olarak sadece sahip olunan kostümler listelenir.
+        """
+        champ_id_int = int(champ_id)
+        base_skin_id = champ_id_int * 1000
+
+        skin_name_by_id: dict[int, str] = {}
+        champ_res = lcu_request("GET", f"/lol-game-data/assets/v1/champions/{champ_id_int}.json")
+        if champ_res.status_code == 200:
+            try:
+                champ_json = champ_res.json()
+            except Exception:
+                champ_json = None
+            skins = champ_json.get("skins") if isinstance(champ_json, dict) else None
+            if isinstance(skins, list):
+                for s in skins:
+                    if not isinstance(s, dict):
+                        continue
+                    try:
+                        sid = int(s.get("id"))
+                    except (TypeError, ValueError):
+                        continue
+                    name = s.get("name")
+                    if isinstance(name, str) and name.strip():
+                        skin_name_by_id[sid] = name.strip()
+
+        owned_skin_ids: set[int] = set()
+        inv_res = lcu_request("GET", "/lol-inventory/v2/inventory/CHAMPION_SKIN")
+        if inv_res.status_code == 200:
+            try:
+                inv = inv_res.json()
+            except Exception:
+                inv = None
+            if isinstance(inv, list):
+                lo = base_skin_id
+                hi = base_skin_id + 1000
+                for item in inv:
+                    if not isinstance(item, dict):
+                        continue
+                    if item.get("owned") is not True:
+                        continue
+                    try:
+                        sid = int(item.get("itemId"))
+                    except (TypeError, ValueError):
+                        continue
+                    if lo <= sid < hi and sid != base_skin_id:
+                        owned_skin_ids.add(sid)
+
+        options: list[tuple[int, str]] = []
+
+        base_name = skin_name_by_id.get(base_skin_id) or "Varsayılan"
+        options.append((base_skin_id, f"Varsayılan ({base_name})"))
+
+        for sid in sorted(owned_skin_ids):
+            options.append((sid, skin_name_by_id.get(sid) or f"Kostüm {sid}"))
+
+        return options
+
+    def edit_custom_skin(self, role_key: str, index: int) -> None:
         combos = self.role_combos.get(role_key) or []
         if index >= len(combos):
             return
@@ -747,63 +1035,79 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "Eksik Seçim", "Önce şampiyon seçmelisiniz.")
             return
 
+        try:
+            champ_id_int = int(champ_id)
+        except (TypeError, ValueError):
+            QMessageBox.warning(self, "Geçersiz", "Geçersiz şampiyon ID.")
+            return
+
+        base_skin_id = champ_id_int * 1000
         champ_name = combo.currentText()
+        cid = str(champ_id_int)
 
-        cid = str(champ_id)
-        role_pages = self.custom_runes.get(role_key) if isinstance(self.custom_runes, dict) else None
-        role_pages = role_pages if isinstance(role_pages, dict) else {}
-        existing_page_role = role_pages.get(cid) if isinstance(role_pages.get(cid), dict) else None
-        existing_found = self._find_custom_page_any_role(champ_id)
-        baseline_page = existing_page_role or (existing_found[1] if existing_found else None)
+        role_skins = self.custom_skins.get(role_key) if isinstance(self.custom_skins, dict) else None
+        role_skins = role_skins if isinstance(role_skins, dict) else {}
+        existing_role = role_skins.get(cid)
 
-        dialog = RunePageDialog(champion_name=champ_name, existing_page=baseline_page, parent=self)
+        existing_found = self._find_custom_skin_any_role(champ_id_int)
+        baseline_skin_id = None
+        if existing_role is not None:
+            baseline_skin_id = existing_role
+        elif existing_found is not None:
+            baseline_skin_id = existing_found[1]
 
+        try:
+            selected_skin_id = int(baseline_skin_id) if baseline_skin_id is not None else base_skin_id
+        except (TypeError, ValueError):
+            selected_skin_id = base_skin_id
+
+        try:
+            options = self._load_skin_options_for_champion(champ_id_int)
+        except Exception as e:
+            QMessageBox.critical(self, "Hata", f"Kostüm listesi alınamadı:\n{e}")
+            return
+
+        dialog = SkinSelectDialog(
+            champion_name=champ_name,
+            skins=options,
+            selected_skin_id=selected_skin_id,
+            parent=self,
+        )
         if dialog.exec() != QDialog.DialogCode.Accepted:
             return
 
-        if dialog.action == "delete":
-            # Remove pages that are effectively "the same" baseline across roles to
-            # keep the champion consistent when it is used in multiple roles.
-            for rk in list((self.custom_runes or {}).keys()):
-                pages = self.custom_runes.get(rk)
-                if not isinstance(pages, dict):
-                    continue
-                page = pages.get(cid)
-                if baseline_page is not None and not self._rune_page_equal(page, baseline_page):
-                    continue
-                pages.pop(cid, None)
-                if not pages:
-                    self.custom_runes.pop(rk, None)
-        else:
-            page = dialog.get_rune_page(allow_incomplete=False)
-            if not page:
-                return
+        new_skin_id = dialog.get_selected_skin_id()
+        if new_skin_id is None:
+            return
 
-            new_page = self._clone_rune_page(page)
-            selected_roles = self._roles_where_champion_selected(champ_id)
+        try:
+            new_skin_id = int(new_skin_id)
+        except (TypeError, ValueError):
+            return
+
+        if new_skin_id == base_skin_id:
+            # Default seçildiyse tüm rollerden temizle.
+            for rk in list((self.custom_skins or {}).keys()):
+                skins = self.custom_skins.get(rk)
+                if not isinstance(skins, dict):
+                    continue
+                skins.pop(cid, None)
+                if not skins:
+                    self.custom_skins.pop(rk, None)
+        else:
+            selected_roles = self._roles_where_champion_selected(champ_id_int)
 
             # Always save for the role the user edited.
-            self.custom_runes.setdefault(role_key, {})[cid] = self._clone_rune_page(new_page)
+            self.custom_skins.setdefault(role_key, {})[cid] = new_skin_id
 
-            # Also update any roles that previously shared the same baseline page,
-            # and create entries for roles where the same champion is selected.
-            for rk in set(list((self.custom_runes or {}).keys()) + list(selected_roles)):
+            # Also update roles where the same champion is selected.
+            for rk in selected_roles:
                 if rk == role_key:
                     continue
-                pages = self.custom_runes.get(rk)
-                pages = pages if isinstance(pages, dict) else {}
-                existing = pages.get(cid) if isinstance(pages.get(cid), dict) else None
-
-                if existing is None:
-                    if rk in selected_roles:
-                        self.custom_runes.setdefault(rk, {})[cid] = self._clone_rune_page(new_page)
-                    continue
-
-                if baseline_page is not None and self._rune_page_equal(existing, baseline_page):
-                    self.custom_runes.setdefault(rk, {})[cid] = self._clone_rune_page(new_page)
+                self.custom_skins.setdefault(rk, {})[cid] = new_skin_id
 
         self.save_config()
-        self.update_all_rune_buttons()
+        self.update_all_skin_buttons()
 
     def stop_automation(self):
         try:
@@ -926,6 +1230,8 @@ class MainWindow(QMainWindow):
                 "role_champions": role_champions,
                 "role_bans": role_bans,
                 "custom_runes": self.custom_runes,
+                "rune_selection": self.rune_selection,
+                "custom_skins": self.custom_skins,
             }
 
             resp = requests.post(
@@ -963,7 +1269,70 @@ class MainWindow(QMainWindow):
             print(f"Config load error: {e}")
             return
 
-        self.custom_runes = data.get("custom_runes", {}) or {}
+        raw_custom_runes = data.get("custom_runes", {}) or {}
+        self.custom_runes = {}
+        if isinstance(raw_custom_runes, dict):
+            # Legacy format (role -> champId -> page) migration to:
+            # champId -> slot("1") -> page
+            legacy_role_keys = {"TOP", "JUNGLE", "MIDDLE", "BOTTOM", "UTILITY"}
+            looks_legacy = any(str(k) in legacy_role_keys for k in raw_custom_runes.keys())
+            if looks_legacy:
+                migrated: dict[str, dict[str, dict]] = {}
+                for _rk, pages in raw_custom_runes.items():
+                    if not isinstance(pages, dict):
+                        continue
+                    for champ_key, page in pages.items():
+                        try:
+                            cid_int = int(champ_key)
+                        except (TypeError, ValueError):
+                            continue
+                        if cid_int <= 0 or not isinstance(page, dict):
+                            continue
+                        migrated.setdefault(str(cid_int), {}).setdefault("1", page)
+                self.custom_runes = migrated
+            else:
+                cleaned: dict[str, dict[str, dict]] = {}
+                for champ_key, slots in raw_custom_runes.items():
+                    try:
+                        cid_int = int(champ_key)
+                    except (TypeError, ValueError):
+                        continue
+                    if cid_int <= 0 or not isinstance(slots, dict):
+                        continue
+                    slot_map: dict[str, dict] = {}
+                    for slot_key, page in slots.items():
+                        sk = str(slot_key)
+                        if sk not in ("1", "2", "3"):
+                            continue
+                        if isinstance(page, dict):
+                            slot_map[sk] = page
+                    if slot_map:
+                        cleaned[str(cid_int)] = slot_map
+                self.custom_runes = cleaned
+
+        raw_selection = data.get("rune_selection", {}) or {}
+        self.rune_selection = {}
+        if isinstance(raw_selection, dict):
+            for champ_key, sel in raw_selection.items():
+                try:
+                    cid_int = int(champ_key)
+                    sel_int = int(sel)
+                except (TypeError, ValueError):
+                    continue
+                if cid_int <= 0 or sel_int not in (1, 2, 3):
+                    continue
+                if str(cid_int) in self.custom_runes and str(sel_int) in (self.custom_runes.get(str(cid_int)) or {}):
+                    self.rune_selection[str(cid_int)] = sel_int
+
+        # If we just migrated legacy custom runes, keep old behavior by selecting preset 1.
+        if "rune_selection" not in data and isinstance(raw_custom_runes, dict):
+            legacy_role_keys = {"TOP", "JUNGLE", "MIDDLE", "BOTTOM", "UTILITY"}
+            if any(str(k) in legacy_role_keys for k in raw_custom_runes.keys()):
+                for champ_key in (self.custom_runes or {}).keys():
+                    self.rune_selection.setdefault(str(champ_key), 1)
+        self.custom_skins = data.get("custom_skins", {}) or {}
+        if not isinstance(self.custom_skins, dict):
+            self.custom_skins = {}
         self.custom_summoner_spells = data.get("custom_summoner_spells", {}) or {}
         if not isinstance(self.custom_summoner_spells, dict):
             self.custom_summoner_spells = {}
@@ -1046,6 +1415,8 @@ class MainWindow(QMainWindow):
 
         self.update_all_champion_spell_rows()
         self.update_all_rune_buttons()
+        self.update_all_rune_select_combos()
+        self.update_all_skin_buttons()
 
     def save_config(self):
         data = {}
@@ -1074,8 +1445,10 @@ class MainWindow(QMainWindow):
         for role_key, cb in self.role_ban_combos.items():
             rb_ui[role_key] = cb.currentData()
         data["role_bans_ui"] = rb_ui
-        
+
         data["custom_runes"] = self.custom_runes
+        data["rune_selection"] = self.rune_selection
+        data["custom_skins"] = self.custom_skins
 
         config_path = CONFIG_FILE
         try:
@@ -1183,8 +1556,10 @@ class MainWindow(QMainWindow):
             for combos in self.role_combos.values():
                 for cb in combos:
                     cb.addItem(name, cid)
-        
+
         self.update_all_rune_buttons()
+        self.update_all_rune_select_combos()
+        self.update_all_skin_buttons()
 
     def check_game_phase(self):
         """

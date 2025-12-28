@@ -323,8 +323,12 @@ class AutomationConfig(BaseModel):
     queue_id: int = 420
     role_champions: dict[str, list[int]] = Field(default_factory=dict)
     role_bans: dict[str, int] = Field(default_factory=dict)
-    # role -> champId(str) -> rune page dict
+    # champId(str) -> slot(str: "1"|"2"|"3") -> rune page dict
     custom_runes: dict[str, dict[str, dict]] = Field(default_factory=dict)
+    # champId(str) -> 0(recommended) | 1 | 2 | 3
+    rune_selection: dict[str, int] = Field(default_factory=dict)
+    # role -> champId(str) -> skinId(int)
+    custom_skins: dict[str, dict[str, int]] = Field(default_factory=dict)
     auto_queue: bool = True
 
 # -----------------------------------------------------------------------------
@@ -711,51 +715,76 @@ def ensure_matchmaking_searching() -> None:
         print(f"[QUEUE] Error starting search: {e}")
 
 
-def apply_runes_impl(session: dict[str, Any], cfg: dict[str, Any], role_for_runes: str) -> bool:
+def apply_runes_impl(session: dict[str, Any], cfg: dict[str, Any]) -> bool:
     """
     Seçili şampiyon için rün sayfasını uygular.
 
-    Öncelik: `cfg["custom_runes"]` -> `runes.json` önerisi.
+    Öncelik:
+    1) Kullanıcının seçtiği özel preset (varsa)
+    2) `runes.json` içinden en yüksek kazanma oranına sahip öneri
     """
     my_cell = session.get("localPlayerCellId")
     my_champ_id = 0
     for p in session.get("myTeam", []):
         if p.get("cellId") == my_cell:
-            my_champ_id = p.get("championId", 0)
+            my_champ_id = p.get("championId", 0) or 0
+            if my_champ_id == 0:
+                my_champ_id = p.get("championPickIntent", 0) or 0
             break
-             
+
     if my_champ_id == 0:
         return False
 
     try:
-        custom_runes = cfg.get("custom_runes") or {}
-        role_pages = custom_runes.get(role_for_runes) if role_for_runes else None
-        if not isinstance(role_pages, dict):
-            role_pages = {}
+        champ_key = str(my_champ_id)
+
+        selection = 0
+        try:
+            selection_map = cfg.get("rune_selection") or {}
+            if isinstance(selection_map, dict):
+                selection = int(selection_map.get(champ_key, 0) or 0)
+        except (TypeError, ValueError):
+            selection = 0
+        if selection not in (0, 1, 2, 3):
+            selection = 0
 
         page_data: dict | None = None
         used_custom = False
-        custom_page = role_pages.get(str(my_champ_id))
-        if isinstance(custom_page, dict):
-            candidate = {
-                "primaryStyleId": custom_page.get("primaryStyleId"),
-                "subStyleId": custom_page.get("subStyleId"),
-                "selectedPerkIds": custom_page.get("selectedPerkIds"),
-            }
-            try:
-                int(candidate.get("primaryStyleId"))
-                int(candidate.get("subStyleId"))
-            except (TypeError, ValueError):
-                candidate = None
+        used_slot: int | None = None
 
-            if candidate is not None and len(_safe_int_list(candidate.get("selectedPerkIds"))) != 9:
-                candidate = None
+        if selection in (1, 2, 3):
+            custom_runes = cfg.get("custom_runes") or {}
+            champ_presets = custom_runes.get(champ_key) if isinstance(custom_runes, dict) else None
+            champ_presets = champ_presets if isinstance(champ_presets, dict) else {}
+            custom_page = champ_presets.get(str(selection))
 
-            if candidate is None:
-                print(f"[RUNES] Invalid custom rune page for championId={my_champ_id}, falling back to recommended")
+            if isinstance(custom_page, dict):
+                candidate = {
+                    "primaryStyleId": custom_page.get("primaryStyleId"),
+                    "subStyleId": custom_page.get("subStyleId"),
+                    "selectedPerkIds": custom_page.get("selectedPerkIds"),
+                }
+                try:
+                    int(candidate.get("primaryStyleId"))
+                    int(candidate.get("subStyleId"))
+                except (TypeError, ValueError):
+                    candidate = None
+
+                if candidate is not None and len(_safe_int_list(candidate.get("selectedPerkIds"))) != 9:
+                    candidate = None
+
+                if candidate is None:
+                    print(
+                        f"[RUNES] Invalid custom rune preset slot={selection} championId={my_champ_id}, falling back to recommended"
+                    )
+                else:
+                    page_data = candidate
+                    used_custom = True
+                    used_slot = selection
             else:
-                page_data = candidate
-                used_custom = True
+                print(
+                    f"[RUNES] Custom rune preset not found slot={selection} championId={my_champ_id}, falling back to recommended"
+                )
 
         if page_data is None:
             recommended = get_recommended_page_for_champion(my_champ_id)
@@ -766,7 +795,10 @@ def apply_runes_impl(session: dict[str, Any], cfg: dict[str, Any], role_for_rune
             used_custom = False
 
         champ_name = get_champion_name_by_id(my_champ_id) or str(my_champ_id)
-        name_prefix = "Custom" if used_custom else "Auto"
+        if used_custom and used_slot is not None:
+            name_prefix = f"Custom {used_slot}"
+        else:
+            name_prefix = "Auto"
         desired_page_name = build_rune_page_name(prefix=name_prefix, champion_name=champ_name)
         page_data["name"] = desired_page_name
 
@@ -1023,8 +1055,7 @@ def automation_loop() -> None:
 
                 if phase == "FINALIZATION":
                     if not cfg.get("runes_applied"):
-                        role_for_runes = assigned_role or str(cfg.get("primary_role", "")).upper()
-                        if apply_runes_impl(session, cfg, role_for_runes):
+                        if apply_runes_impl(session, cfg):
                             CURRENT_CONFIG["runes_applied"] = True
                 else:
                     CURRENT_CONFIG["runes_applied"] = False
@@ -1074,6 +1105,36 @@ def automation_loop() -> None:
                         body["spell2Id"] = s2
                     if body:
                         lcu_request("PATCH", "/lol-champ-select/v1/session/my-selection", body)
+
+                try:
+                    if my_spell_champ_id:
+                        base_skin_id = int(my_spell_champ_id) * 1000
+                        desired_skin_id = base_skin_id
+
+                        custom_skins = cfg.get("custom_skins")
+                        if isinstance(custom_skins, dict):
+                            role_skins = custom_skins.get(spell_role_key)
+                            if isinstance(role_skins, dict):
+                                raw = role_skins.get(str(my_spell_champ_id))
+                                if raw is None:
+                                    raw = role_skins.get(my_spell_champ_id)
+                                try:
+                                    desired_skin_id = int(raw)
+                                except (TypeError, ValueError):
+                                    desired_skin_id = base_skin_id
+
+                        skin_key = f"{my_spell_champ_id}:{desired_skin_id}"
+                        if CURRENT_CONFIG.get("skin_applied_key") != skin_key:
+                            lcu_request(
+                                "PATCH",
+                                "/lol-champ-select/v1/session/my-selection",
+                                {"selectedSkinId": int(desired_skin_id)},
+                            )
+                            CURRENT_CONFIG["skin_applied_key"] = skin_key
+                    else:
+                        CURRENT_CONFIG.pop("skin_applied_key", None)
+                except Exception as e:
+                    print(f"[SKIN] Failed to apply skin: {e}")
         except Exception as e:
             print(f"[AUTO] Loop error: {e}")
             time.sleep(1)
