@@ -1,0 +1,36 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyd
+*.so
+
+# Virtual envs
+venv/
+.venv/
+env/
+.env/
+
+# IDEs
+.idea/
+.vscode/
+
+# OS
+Thumbs.db
+Desktop.ini
+
+# Logs / local config
+*.log
+user_config.json
+
+# Scratch / experiments
+test.html
+images/
+sounds/
+ValorantProject/
+_delete_test.txt
+LoLAutomation.spec
+
+# PyInstaller
+build/
+dist/
+*.spec.bak
