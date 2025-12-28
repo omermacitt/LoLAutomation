@@ -188,9 +188,9 @@ SUMMONER_SPELLS = {
     "Işınlan (Teleport)": 12,
     "Hayalet (Ghost)": 6,
     "İyileştirme (Heal)": 7,
-    "Tüket (Smite)": 11,
+    "Çarp (Smite)": 11,
     "Bitkinlik (Exhaust)": 3,
-    "Kalkan (Barrier)": 21,
+    "Bariyer (Barrier)": 21,
     "Arındır (Cleanse)": 1,
 }
 
@@ -449,7 +449,7 @@ class MainWindow(QMainWindow):
 
     def _default_spell_names_for_role(self, role_key: str) -> tuple[str, str]:
         if role_key == "JUNGLE":
-            return "Sıçra (Flash)", "Tüket (Smite)"
+            return "Sıçra (Flash)", "Çarp (Smite)"
         return "Sıçra (Flash)", "Tutuştur (Ignite)"
 
     def _normalize_spell_id_from_any(self, value) -> int | None:
@@ -621,7 +621,7 @@ class MainWindow(QMainWindow):
         spell2_combo.setToolTip("2. Büyü")
         spell1_combo.setCurrentText("Sıçra (Flash)")
         if role_key == "JUNGLE":
-            spell2_combo.setCurrentText("Tüket (Smite)")
+            spell2_combo.setCurrentText("Çarp (Smite)")
         else:
             spell2_combo.setCurrentText("Tutuştur (Ignite)")
 
