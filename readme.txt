@@ -29,12 +29,11 @@ EXE oluşturma (PyInstaller)
 ---------------------------
 python -m PyInstaller --clean -y run_app.spec
 
-Çıktı: dist/RunePilot.exe
+Çıktı: dist/RunePilot/RunePilot.exe
 
 EXE ile çalışma
 ---------------
-- dist klasöründeki .exe dosyası ile proje kökündeki runes.json aynı dizinde olmalı.
-- LoL Client açıkken .exe'yi çalıştırın.
+- LoL Client açıkken dist/RunePilot/RunePilot.exe'yi çalıştırın.
 
 Arayüz / İlk kullanım
 ---------------------
@@ -54,8 +53,8 @@ Otomatik güncelleme (GitHub Releases)
 - Uygulama açılışta GitHub'daki "latest release" bilgisini kontrol edebilir.
 - Varsayılan repo: omermacitt/LoLAutomation (override: RUNEPILOT_UPDATE_REPO=owner/repo)
 - Private repo için (opsiyonel): RUNEPILOT_GITHUB_TOKEN=...
-- Release tag önerisi: v0.1.1 (SemVer)
-- Installer asset adı önerisi: RunePilotSetup-0.1.1.exe (veya RunePilotSetup-v0.1.1.exe)
+- Release tag önerisi: v<version> (ör. v0.0.1)
+- Installer asset adı önerisi: RunePilotSetup-<version>.exe (veya RunePilotSetup-v<version>.exe)
 - Farklı isimlendirme gerekiyorsa:
   - RUNEPILOT_UPDATE_ASSET_PREFIX (varsayılan: RunePilotSetup-)
   - RUNEPILOT_UPDATE_ASSET_EXT (varsayılan: .exe)
@@ -68,6 +67,6 @@ Installer üretme (Inno Setup)
 2) Inno Setup 6 kurun (ISCC.exe).
 3) Installer derleyin:
    powershell -ExecutionPolicy Bypass -File installer\\build_installer.ps1
-   (veya) ISCC.exe installer\\RunePilot.iss /DAppVersion=0.0.1
+   (veya) ISCC.exe installer\\RunePilot.iss /DAppVersion=<version>
 4) Çıktı:
-   dist\\installer\\RunePilotSetup-0.0.1.exe
+   dist\\installer\\RunePilotSetup-<version>.exe

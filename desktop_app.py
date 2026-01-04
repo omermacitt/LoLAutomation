@@ -39,9 +39,11 @@ from PyQt6.QtWidgets import (
     QTabWidget,
     QGroupBox,
     QFormLayout,
+    QProgressBar,
     QProgressDialog,
+    QStyle,
 )
-from PyQt6.QtCore import Qt, QTimer, QObject, QEvent, pyqtSignal
+from PyQt6.QtCore import Qt, QTimer, QObject, QEvent, pyqtSignal, QSize
 
 from win10toast import ToastNotifier
 
@@ -104,6 +106,9 @@ class _SearchableComboLineEditFilter(QObject):
 class _UpdateEmitter(QObject):
     update_available = pyqtSignal(object)
     download_finished = pyqtSignal(bool, str, str)
+
+class _HealthEmitter(QObject):
+    checked = pyqtSignal(bool, bool, str)
 
 
 def make_combo_searchable(combo: QComboBox, *, placeholder: str = "Ara...") -> None:
@@ -232,6 +237,35 @@ class MainWindow(QMainWindow):
         main_layout.setSpacing(15)
         main_layout.setContentsMargins(20, 20, 20, 20)
 
+        # Sağ üst durum/progress göstergesi
+        top_row = QHBoxLayout()
+        top_row.setContentsMargins(0, 0, 0, 0)
+        top_row.setSpacing(8)
+        top_row.addStretch(1)
+
+        self.corner_status_label = QLabel("Kontrol…")
+        self.corner_status_label.setObjectName("cornerStatusLabel")
+        self.corner_status_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.corner_status_label.setProperty("state", "checking")
+        self.corner_status_label.setToolTip("Otomasyon durumu")
+
+        self.corner_progress = QProgressBar()
+        self.corner_progress.setObjectName("cornerProgress")
+        self.corner_progress.setTextVisible(False)
+        self.corner_progress.setFixedSize(90, 10)
+        self.corner_progress.setRange(0, 0)  # indeterminate
+        self.corner_progress.setProperty("state", "checking")
+
+        corner_container = QWidget()
+        corner_layout = QHBoxLayout(corner_container)
+        corner_layout.setContentsMargins(0, 0, 0, 0)
+        corner_layout.setSpacing(6)
+        corner_layout.addWidget(self.corner_status_label)
+        corner_layout.addWidget(self.corner_progress)
+
+        top_row.addWidget(corner_container, alignment=Qt.AlignmentFlag.AlignRight)
+        main_layout.addLayout(top_row)
+
         title = QLabel(APP_DISPLAY_NAME)
         title.setObjectName("appTitle")
         title.setAlignment(Qt.AlignmentFlag.AlignHCenter)
@@ -338,19 +372,41 @@ class MainWindow(QMainWindow):
             self.role_ban_combos[role_key] = ban_combo
 
         button_layout = QHBoxLayout()
-        
+        button_layout.setSpacing(10)
+
+        self._icon_play = self.style().standardIcon(QStyle.StandardPixmap.SP_MediaPlay)
+        self._icon_stop = self.style().standardIcon(QStyle.StandardPixmap.SP_MediaStop)
+        self._icon_running = self.style().standardIcon(QStyle.StandardPixmap.SP_DialogApplyButton)
+        self._icon_wait = self.style().standardIcon(QStyle.StandardPixmap.SP_BrowserReload)
+
         self.start_button = QPushButton("Başlat")
         self.start_button.setObjectName("startButton")
+        self.start_button.setIcon(self._icon_play)
+        self.start_button.setIconSize(QSize(18, 18))
+        self.start_button.setToolTip("Otomasyonu başlatır")
         self.start_button.clicked.connect(self.start_automation)
         self.start_button.setFixedHeight(40)
+        self.start_button.setProperty("automationState", "stopped")
         button_layout.addWidget(self.start_button)
 
         self.stop_button = QPushButton("Durdur")
         self.stop_button.setObjectName("stopButton")
+        self.stop_button.setIcon(self._icon_stop)
+        self.stop_button.setIconSize(QSize(18, 18))
+        self.stop_button.setToolTip("Otomasyonu durdurur")
         self.stop_button.clicked.connect(self.stop_automation)
         self.stop_button.setFixedHeight(40)
         self.stop_button.setEnabled(False) # Başlangıçta pasif
+        self.stop_button.setProperty("automationState", "stopped")
         button_layout.addWidget(self.stop_button)
+
+        self.automation_status = QLabel("Durum: Kontrol ediliyor…")
+        self.automation_status.setObjectName("automationStatus")
+        self.automation_status.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.automation_status.setFixedHeight(32)
+        self.automation_status.setProperty("state", "checking")
+        button_layout.addStretch(1)
+        button_layout.addWidget(self.automation_status)
 
         main_layout.addLayout(button_layout)
 
@@ -374,6 +430,20 @@ class MainWindow(QMainWindow):
         self.phase_timer.timeout.connect(self.check_game_phase)
         self.phase_timer.start(2000)
 
+        self._health_emitter = _HealthEmitter()
+        self._health_emitter.checked.connect(self._on_health_checked)
+        self._health_check_inflight = False
+        self._automation_action_inflight = False
+        self._health_timer = QTimer(self)
+        self._health_timer.timeout.connect(self._check_health_async)
+        self._health_timer.start(4000)
+        self._check_health_async()
+
+        self._automation_state = "checking"
+        self._live_config_push_timer = QTimer(self)
+        self._live_config_push_timer.setSingleShot(True)
+        self._live_config_push_timer.timeout.connect(self._push_live_config_to_api)
+
         # Otomatik güncelleme kontrolü (GitHub Releases)
         self._update_emitter = _UpdateEmitter()
         self._update_emitter.update_available.connect(self._on_update_available)
@@ -381,6 +451,167 @@ class MainWindow(QMainWindow):
         self._update_progress_dialog: QProgressDialog | None = None
         self._update_check_started = False
         self._schedule_update_check()
+
+    def _repolish(self, widget: QWidget) -> None:
+        try:
+            widget.style().unpolish(widget)
+            widget.style().polish(widget)
+        except Exception:
+            pass
+        widget.update()
+
+    def _set_corner_status_state(self, state: str) -> None:
+        if not hasattr(self, "corner_status_label") or not hasattr(self, "corner_progress"):
+            return
+
+        if state == "running":
+            text = "Çalışıyor"
+            self.corner_progress.setRange(0, 1)
+            self.corner_progress.setValue(1)
+        elif state == "stopped":
+            text = "Durduruldu"
+            self.corner_progress.setRange(0, 1)
+            self.corner_progress.setValue(0)
+        elif state == "offline":
+            text = "Sunucu yok"
+            self.corner_progress.setRange(0, 1)
+            self.corner_progress.setValue(0)
+        elif state == "starting":
+            text = "Başlıyor…"
+            self.corner_progress.setRange(0, 0)
+        elif state == "stopping":
+            text = "Duruyor…"
+            self.corner_progress.setRange(0, 0)
+        else:
+            state = "checking"
+            text = "Kontrol…"
+            self.corner_progress.setRange(0, 0)
+
+        self.corner_status_label.setText(text)
+        self.corner_status_label.setProperty("state", state)
+        self.corner_progress.setProperty("state", state)
+        self.corner_status_label.setToolTip(f"Durum: {text}")
+
+        self._repolish(self.corner_status_label)
+        self._repolish(self.corner_progress)
+
+    def _set_automation_ui_state(self, state: str, *, detail: str | None = None) -> None:
+        """
+        UI state'ini tek noktadan günceller.
+
+        state: checking | offline | stopped | running | starting | stopping
+        """
+        if state == "running":
+            self.start_button.setText("Çalışıyor")
+            self.start_button.setIcon(self._icon_running)
+            self.start_button.setEnabled(False)
+
+            self.stop_button.setText("Durdur")
+            self.stop_button.setIcon(self._icon_stop)
+            self.stop_button.setEnabled(True)
+
+            badge_text = detail or "Durum: Çalışıyor"
+        elif state == "stopped":
+            self.start_button.setText("Başlat")
+            self.start_button.setIcon(self._icon_play)
+            self.start_button.setEnabled(True)
+
+            self.stop_button.setText("Durdur")
+            self.stop_button.setIcon(self._icon_stop)
+            self.stop_button.setEnabled(False)
+
+            badge_text = detail or "Durum: Durduruldu"
+        elif state == "offline":
+            self.start_button.setText("Başlat")
+            self.start_button.setIcon(self._icon_play)
+            self.start_button.setEnabled(True)
+
+            self.stop_button.setText("Durdur")
+            self.stop_button.setIcon(self._icon_stop)
+            self.stop_button.setEnabled(False)
+
+            badge_text = detail or "Durum: Sunucu kapalı"
+        elif state == "starting":
+            self.start_button.setText("Başlatılıyor…")
+            self.start_button.setIcon(self._icon_wait)
+            self.start_button.setEnabled(False)
+
+            self.stop_button.setText("Durdur")
+            self.stop_button.setIcon(self._icon_stop)
+            self.stop_button.setEnabled(False)
+
+            badge_text = detail or "Durum: Başlatılıyor…"
+        elif state == "stopping":
+            self.start_button.setText("Çalışıyor")
+            self.start_button.setIcon(self._icon_running)
+            self.start_button.setEnabled(False)
+
+            self.stop_button.setText("Durduruluyor…")
+            self.stop_button.setIcon(self._icon_wait)
+            self.stop_button.setEnabled(False)
+
+            badge_text = detail or "Durum: Durduruluyor…"
+        else:
+            # checking / unknown fallback
+            self.start_button.setText("Başlat")
+            self.start_button.setIcon(self._icon_play)
+            self.start_button.setEnabled(True)
+
+            self.stop_button.setText("Durdur")
+            self.stop_button.setIcon(self._icon_stop)
+            self.stop_button.setEnabled(False)
+
+            badge_text = detail or "Durum: Kontrol ediliyor…"
+            state = "checking"
+
+        self.start_button.setProperty("automationState", state)
+        self.stop_button.setProperty("automationState", state)
+        self.automation_status.setProperty("state", state)
+        self.automation_status.setText(badge_text)
+        self._automation_state = state
+
+        self._repolish(self.start_button)
+        self._repolish(self.stop_button)
+        self._repolish(self.automation_status)
+        self._set_corner_status_state(state)
+
+    def _check_health_async(self) -> None:
+        if self._automation_action_inflight or self._health_check_inflight:
+            return
+
+        self._health_check_inflight = True
+
+        def worker() -> None:
+            ok = False
+            running = False
+            err = ""
+            try:
+                resp = requests.get(f"{API_BASE}/health", timeout=API_TIMEOUT_SEC)
+                if resp.status_code == 200:
+                    data = resp.json() or {}
+                    ok = True
+                    running = bool(data.get("running"))
+                else:
+                    err = f"HTTP {resp.status_code}"
+            except Exception as e:
+                err = str(e)
+
+            self._health_emitter.checked.emit(bool(ok), bool(running), str(err))
+
+        threading.Thread(target=worker, daemon=True).start()
+
+    def _on_health_checked(self, ok: bool, running: bool, err: str) -> None:
+        self._health_check_inflight = False
+        if self._automation_action_inflight:
+            return
+
+        if not ok:
+            self.automation_status.setToolTip(err or "")
+            self._set_automation_ui_state("offline")
+            return
+
+        self.automation_status.setToolTip("Sunucu çalışıyor")
+        self._set_automation_ui_state("running" if running else "stopped")
 
     def _set_combo_item_enabled(self, combo: QComboBox, index: int, enabled: bool) -> None:
         model = combo.model()
@@ -680,6 +911,7 @@ class MainWindow(QMainWindow):
         self.role_rune_select_combos[role_key][index] = rune_select
 
         button = QPushButton("Rünler")
+        button.setObjectName("runeButton")
         button.setFixedWidth(95)
         button.clicked.connect(lambda _=False, rk=role_key, i=index: self.open_rune_presets_dialog(rk, i))
         row_layout.addWidget(button)
@@ -688,6 +920,7 @@ class MainWindow(QMainWindow):
         self.role_rune_buttons[role_key][index] = button
 
         skin_button = QPushButton("Kostüm")
+        skin_button.setObjectName("skinButton")
         skin_button.setFixedWidth(95)
         skin_button.clicked.connect(lambda _=False, rk=role_key, i=index: self.edit_custom_skin(rk, i))
         row_layout.addWidget(skin_button)
@@ -716,12 +949,14 @@ class MainWindow(QMainWindow):
             button.setEnabled(False)
             button.setText("Rünler")
             button.setToolTip("")
+            self._set_button_configured(button, False)
             return
 
         button.setEnabled(True)
         presets = self.custom_runes.get(str(champ_id))
         presets = presets if isinstance(presets, dict) else {}
         preset_count = sum(1 for k, v in presets.items() if str(k) in ("1", "2", "3") and isinstance(v, dict))
+        self._set_button_configured(button, preset_count > 0)
         button.setText(f"Rünler ({preset_count})" if preset_count else "Rünler")
         button.setToolTip(
             f"{preset_count} adet özel rün preset'i kaydedildi" if preset_count else "Önerilen rün kullanılacak"
@@ -915,12 +1150,16 @@ class MainWindow(QMainWindow):
         if not champ_id:
             button.setText("Kostüm")
             button.setToolTip("Önce şampiyon seçin")
+            button.setEnabled(False)
+            self._set_button_configured(button, False)
             return
 
+        button.setEnabled(True)
         cid = str(champ_id)
         role_skins = self.custom_skins.get(role_key) if isinstance(self.custom_skins, dict) else None
         role_skins = role_skins if isinstance(role_skins, dict) else {}
         has_custom = cid in role_skins
+        self._set_button_configured(button, bool(has_custom))
         button.setText("Kostüm (Özel)" if has_custom else "Kostüm")
         button.setToolTip("Özel kostüm seçildi" if has_custom else "Varsayılan kostüm kullanılacak")
 
@@ -928,6 +1167,26 @@ class MainWindow(QMainWindow):
         for role_key, buttons in (self.role_skin_buttons or {}).items():
             for i in range(min(3, len(buttons))):
                 self.update_skin_button(role_key, i)
+
+    def _set_button_configured(self, button: QPushButton, configured: bool) -> None:
+        """
+        Qt stylesheet'in dinamik property tabanlı stillerini güncellemek için
+        butona `configured=true/false` yazar ve stilin yeniden uygulanmasını sağlar.
+        """
+        try:
+            current = button.property("configured")
+            if isinstance(current, bool) and current == bool(configured):
+                return
+        except Exception:
+            pass
+
+        try:
+            button.setProperty("configured", bool(configured))
+            button.style().unpolish(button)
+            button.style().polish(button)
+            button.update()
+        except Exception:
+            pass
 
     def _clone_rune_page(self, page: dict) -> dict:
         cloned = dict(page or {})
@@ -1134,14 +1393,24 @@ class MainWindow(QMainWindow):
         self.update_all_skin_buttons()
 
     def stop_automation(self):
+        if self._automation_action_inflight:
+            return
+
+        self._automation_action_inflight = True
+        self._set_automation_ui_state("stopping")
         try:
-            requests.post(f"{API_BASE}/stop_automation", timeout=API_TIMEOUT_SEC)
-            self.start_button.setEnabled(True)
-            self.stop_button.setEnabled(False)
-            self.start_button.setText("Başlat")
+            resp = requests.post(f"{API_BASE}/stop_automation", timeout=API_TIMEOUT_SEC)
+            if resp.status_code != 200:
+                raise RuntimeError(f"HTTP {resp.status_code}: {resp.text}")
+
+            self._set_automation_ui_state("stopped")
             QMessageBox.information(self, "Durduruldu", f"{APP_DISPLAY_NAME} durduruldu.")
         except Exception as e:
+            self._set_automation_ui_state("offline")
             QMessageBox.critical(self, "Hata", f"{APP_DISPLAY_NAME} durdurulamadı: {e}")
+        finally:
+            self._automation_action_inflight = False
+            self._check_health_async()
 
     def closeEvent(self, event):
         try:
@@ -1150,40 +1419,125 @@ class MainWindow(QMainWindow):
             print(f"Config save error: {e}")
         super().closeEvent(event)
 
-    def start_automation(self):
+    def _build_automation_payload(self) -> dict:
+        queue_name = self.queue_combo.currentText()
+        queue_id = QUEUE_MODES.get(queue_name, 420)
+
+        primary_role = ROLES.get(self.primary_role_combo.currentText())
+        secondary_role = ROLES.get(self.secondary_role_combo.currentText())
+
+        role_summoner_spells: dict[str, dict[str, int | None]] = {}
+        for role_key in (self.role_combos or {}).keys():
+            combos = self.role_combos.get(role_key) or []
+            for i, champ_combo in enumerate(combos):
+                if champ_combo.currentData() is None:
+                    continue
+                pair = self._get_champion_spell_pair(role_key, i)
+                if pair is None:
+                    continue
+                spell1_combo, spell2_combo = pair
+                role_summoner_spells[role_key] = {
+                    "spell1Id": SUMMONER_SPELLS.get(spell1_combo.currentText()),
+                    "spell2Id": SUMMONER_SPELLS.get(spell2_combo.currentText()),
+                }
+                break
+
+        fallback_role_key = str(primary_role or "").upper()
+        fallback_spells = role_summoner_spells.get(fallback_role_key) or {}
+        spell1 = fallback_spells.get("spell1Id") if isinstance(fallback_spells, dict) else None
+        spell2 = fallback_spells.get("spell2Id") if isinstance(fallback_spells, dict) else None
+
+        role_champions: dict[str, list[int]] = {}
+        for role_key, combos in self.role_combos.items():
+            selected_ids: list[int] = []
+            for cb in combos:
+                val = cb.currentData()
+                if val is None:
+                    continue
+                try:
+                    selected_ids.append(int(val))
+                except (TypeError, ValueError):
+                    continue
+            if selected_ids:
+                role_champions[role_key] = selected_ids
+
+        role_bans: dict[str, int] = {}
+        for role_key, cb in self.role_ban_combos.items():
+            val = cb.currentData()
+            if val is None:
+                continue
+            try:
+                role_bans[role_key] = int(val)
+            except (TypeError, ValueError):
+                continue
+
+        custom_summoner_spells = self._sync_custom_summoner_spells_from_ui()
+
+        return {
+            "queue_id": int(queue_id),
+            "primary_role": primary_role,
+            "secondary_role": secondary_role,
+            "primary_summoner_spell": spell1,
+            "secondary_summoner_spell": spell2,
+            "role_summoner_spells": role_summoner_spells,
+            "custom_summoner_spells": custom_summoner_spells,
+            "role_champions": role_champions,
+            "role_bans": role_bans,
+            "custom_runes": self.custom_runes,
+            "rune_selection": self.rune_selection,
+            "custom_skins": self.custom_skins,
+        }
+
+    def _schedule_live_config_push(self) -> None:
+        if getattr(self, "_automation_state", "") != "running":
+            return
+        if getattr(self, "_automation_action_inflight", False):
+            return
+
+        timer = getattr(self, "_live_config_push_timer", None)
+        if timer is None:
+            self._live_config_push_timer = QTimer(self)
+            self._live_config_push_timer.setSingleShot(True)
+            self._live_config_push_timer.timeout.connect(self._push_live_config_to_api)
+            timer = self._live_config_push_timer
+
         try:
-            # 1. Verileri topla
-            queue_name = self.queue_combo.currentText()
-            queue_id = QUEUE_MODES.get(queue_name, 420)
+            timer.start(350)
+        except Exception:
+            pass
 
-            primary_role_name = self.primary_role_combo.currentText()
-            primary_role = ROLES.get(primary_role_name)
+    def _push_live_config_to_api(self) -> None:
+        if getattr(self, "_automation_state", "") != "running":
+            return
+        if getattr(self, "_automation_action_inflight", False):
+            return
 
-            secondary_role_name = self.secondary_role_combo.currentText()
-            secondary_role = ROLES.get(secondary_role_name)
+        try:
+            payload = self._build_automation_payload()
+        except Exception as e:
+            print(f"[CONFIG] Payload build failed: {e}")
+            return
 
-            role_summoner_spells: dict[str, dict[str, int | None]] = {}
-            for role_key in (self.role_combos or {}).keys():
-                combos = self.role_combos.get(role_key) or []
-                for i, champ_combo in enumerate(combos):
-                    if champ_combo.currentData() is None:
-                        continue
-                    pair = self._get_champion_spell_pair(role_key, i)
-                    if pair is None:
-                        continue
-                    spell1_combo, spell2_combo = pair
-                    role_summoner_spells[role_key] = {
-                        "spell1Id": SUMMONER_SPELLS.get(spell1_combo.currentText()),
-                        "spell2Id": SUMMONER_SPELLS.get(spell2_combo.currentText()),
-                    }
-                    break
+        def worker() -> None:
+            try:
+                resp = requests.post(
+                    f"{API_BASE}/start_automation",
+                    json=payload,
+                    timeout=API_TIMEOUT_SEC,
+                )
+                if resp.status_code != 200:
+                    print(f"[CONFIG] Live update failed: {resp.status_code} {resp.text}")
+            except Exception as e:
+                print(f"[CONFIG] Live update failed: {e}")
 
-            fallback_role_key = str(primary_role or "").upper()
-            fallback_spells = role_summoner_spells.get(fallback_role_key) or {}
-            spell1 = fallback_spells.get("spell1Id") if isinstance(fallback_spells, dict) else None
-            spell2 = fallback_spells.get("spell2Id") if isinstance(fallback_spells, dict) else None
+        threading.Thread(target=worker, daemon=True).start()
 
-            # 2. Seçim doğrulama (tüm roller için)
+    def start_automation(self):
+        if self._automation_action_inflight:
+            return
+
+        try:
+            # 1. Seçim doğrulama (tüm roller için)
             role_display = {v: k for k, v in ROLES.items() if v is not None}
 
             missing_lines: list[str] = []
@@ -1209,21 +1563,8 @@ class MainWindow(QMainWindow):
                 )
                 return
 
-            role_champions = {}
-            for role_key, combos in self.role_combos.items():
-                selected_ids = []
-                for cb in combos:
-                    val = cb.currentData()
-                    if val is not None:
-                        selected_ids.append(val)
-                if selected_ids:
-                    role_champions[role_key] = selected_ids
-
-            role_bans = {}
-            for role_key, cb in self.role_ban_combos.items():
-                val = cb.currentData()
-                if val is not None:
-                    role_bans[role_key] = val
+            self._automation_action_inflight = True
+            self._set_automation_ui_state("starting")
 
             # API ayakta mı?
             try:
@@ -1237,26 +1578,11 @@ class MainWindow(QMainWindow):
                     f"FastAPI sunucusuna bağlanılamadı. Uygulamayı `run_app.py` / `{APP_DISPLAY_NAME}.exe` (eski: `LoLAutomation.exe`) ile başlattığınızdan emin olun.\n\n"
                     f"Detay: {e}",
                 )
+                self._set_automation_ui_state("offline")
                 return
 
-            # Ayarları kaydet
-            custom_summoner_spells = self._sync_custom_summoner_spells_from_ui()
+            payload = self._build_automation_payload()
             self.save_config()
-
-            payload = {
-                "queue_id": queue_id,
-                "primary_role": primary_role,
-                "secondary_role": secondary_role,
-                "primary_summoner_spell": spell1,
-                "secondary_summoner_spell": spell2,
-                "role_summoner_spells": role_summoner_spells,
-                "custom_summoner_spells": custom_summoner_spells,
-                "role_champions": role_champions,
-                "role_bans": role_bans,
-                "custom_runes": self.custom_runes,
-                "rune_selection": self.rune_selection,
-                "custom_skins": self.custom_skins,
-            }
 
             resp = requests.post(
                 f"{API_BASE}/start_automation",
@@ -1264,16 +1590,19 @@ class MainWindow(QMainWindow):
                 timeout=API_TIMEOUT_SEC,
             )
             if resp.status_code == 200:
-                self.start_button.setEnabled(False)
-                self.stop_button.setEnabled(True)
-                self.start_button.setText("Çalışıyor")
+                self._set_automation_ui_state("running")
                 QMessageBox.information(self, "Başarılı", f"{APP_DISPLAY_NAME} başlatıldı!")
             else:
+                self._set_automation_ui_state("offline")
                 QMessageBox.critical(self, "Hata", f"API Hatası: {resp.status_code}\n\n{resp.text}")
         except Exception as e:
             import traceback
 
+            self._set_automation_ui_state("offline")
             QMessageBox.critical(self, "Hata", f"Başlatılamadı:\n{e}\n\n{traceback.format_exc()}")
+        finally:
+            self._automation_action_inflight = False
+            self._check_health_async()
 
 
     def load_config(self):
@@ -1495,6 +1824,7 @@ class MainWindow(QMainWindow):
                 json.dump(data, f, indent=2, ensure_ascii=False)
         except Exception as e:
             print(f"Config save error: {e}")
+        self._schedule_live_config_push()
 
     def _schedule_update_check(self) -> None:
         """
@@ -1780,6 +2110,108 @@ QLabel#appSubtitle {
     padding-bottom: 8px;
 }
 
+QLabel#cornerStatusLabel {
+    padding: 4px 10px;
+    border-radius: 12px;
+    font-weight: 700;
+    border: 1px solid #3c3c3c;
+    background-color: #1e282d;
+    color: #f0e6d2;
+    font-size: 12px;
+}
+
+QLabel#cornerStatusLabel[state="running"] {
+    background-color: #1aa865;
+    border-color: #1aa865;
+    color: #010a13;
+}
+
+QLabel#cornerStatusLabel[state="stopped"] {
+    background-color: #111821;
+    border-color: #2b2f36;
+    color: #f0e6d2;
+}
+
+QLabel#cornerStatusLabel[state="offline"] {
+    background-color: #d64545;
+    border-color: #d64545;
+    color: #010a13;
+}
+
+QLabel#cornerStatusLabel[state="checking"],
+QLabel#cornerStatusLabel[state="starting"] {
+    background-color: #c8aa6e;
+    border-color: #c8aa6e;
+    color: #010a13;
+}
+
+QLabel#cornerStatusLabel[state="stopping"] {
+    background-color: #d64545;
+    border-color: #d64545;
+    color: #010a13;
+}
+
+QProgressBar#cornerProgress {
+    background-color: #111821;
+    border: 1px solid #2b2f36;
+    border-radius: 5px;
+}
+
+QProgressBar#cornerProgress::chunk {
+    background-color: #c8aa6e;
+    border-radius: 4px;
+}
+
+QProgressBar#cornerProgress[state="running"]::chunk {
+    background-color: #1aa865;
+}
+
+QProgressBar#cornerProgress[state="offline"]::chunk,
+QProgressBar#cornerProgress[state="stopping"]::chunk {
+    background-color: #d64545;
+}
+
+QLabel#automationStatus {
+    padding: 6px 12px;
+    border-radius: 16px;
+    font-weight: 700;
+    border: 1px solid #3c3c3c;
+    background-color: #1e282d;
+    color: #f0e6d2;
+    min-width: 190px;
+}
+
+QLabel#automationStatus[state="running"] {
+    background-color: #1aa865;
+    border-color: #1aa865;
+    color: #010a13;
+}
+
+QLabel#automationStatus[state="stopped"] {
+    background-color: #111821;
+    border-color: #2b2f36;
+    color: #f0e6d2;
+}
+
+QLabel#automationStatus[state="offline"] {
+    background-color: #d64545;
+    border-color: #d64545;
+    color: #010a13;
+}
+
+QLabel#automationStatus[state="checking"],
+QLabel#automationStatus[state="starting"] {
+    background-color: #c8aa6e;
+    border-color: #c8aa6e;
+    color: #010a13;
+}
+
+QLabel#automationStatus[state="stopping"] {
+    background-color: #d64545;
+    border-color: #d64545;
+    color: #010a13;
+}
+
 QGroupBox {
     border: 1px solid #c8aa6e;
     border-radius: 4px;
@@ -1885,7 +2317,7 @@ QPushButton:pressed {
 QPushButton:disabled {
     background-color: #111821;
     border: 1px solid #2b2f36;
-    color: #2b2f36;
+    color: #6b7280;
 }
 
 QPushButton#refreshButton {
@@ -1899,13 +2331,28 @@ QPushButton#refreshButton:hover {
     color: #f0e6d2;
 }
 
+QPushButton#runeButton[configured="true"],
+QPushButton#skinButton[configured="true"] {
+    background-color: #c8aa6e;
+    border-color: #c8aa6e;
+    color: #010a13;
+}
+
+QPushButton#runeButton[configured="true"]:hover,
+QPushButton#skinButton[configured="true"]:hover {
+    background-color: #f0e6d2;
+    border-color: #f0e6d2;
+    color: #010a13;
+}
+
 QPushButton#startButton {
+    background-color: #1aa865;
     border-color: #1aa865;
-    color: #1aa865;
+    color: #010a13;
 }
 
 QPushButton#startButton:hover {
-    background-color: #1aa865;
+    background-color: #22c172;
     border-color: #1aa865;
     color: #010a13;
 }
@@ -1916,13 +2363,28 @@ QPushButton#startButton:pressed {
     color: #f0e6d2;
 }
 
+QPushButton#startButton:disabled,
+QPushButton#startButton[automationState="running"]:disabled,
+QPushButton#startButton[automationState="stopping"]:disabled {
+    background-color: #1aa865;
+    border-color: #1aa865;
+    color: #010a13;
+}
+
+QPushButton#startButton[automationState="starting"]:disabled {
+    background-color: #c8aa6e;
+    border-color: #c8aa6e;
+    color: #010a13;
+}
+
 QPushButton#stopButton {
+    background-color: #d64545;
     border-color: #d64545;
-    color: #d64545;
+    color: #010a13;
 }
 
 QPushButton#stopButton:hover {
-    background-color: #d64545;
+    background-color: #e25a5a;
     border-color: #d64545;
     color: #010a13;
 }
@@ -1931,6 +2393,12 @@ QPushButton#stopButton:pressed {
     background-color: #9e3030;
     border-color: #f0e6d2;
     color: #f0e6d2;
+}
+
+QPushButton#stopButton[automationState="stopping"]:disabled {
+    background-color: #d64545;
+    border-color: #d64545;
+    color: #010a13;
 }
 """
 

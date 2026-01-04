@@ -1057,9 +1057,9 @@ def automation_loop() -> None:
                 if phase == "FINALIZATION":
                     if not cfg.get("runes_applied"):
                         if apply_runes_impl(session, cfg):
-                            CURRENT_CONFIG["runes_applied"] = True
+                            cfg["runes_applied"] = True
                 else:
-                    CURRENT_CONFIG["runes_applied"] = False
+                    cfg["runes_applied"] = False
 
                 spell_role_key = assigned_role or str(cfg.get("primary_role", "")).upper()
 
@@ -1125,15 +1125,15 @@ def automation_loop() -> None:
                                     desired_skin_id = base_skin_id
 
                         skin_key = f"{my_spell_champ_id}:{desired_skin_id}"
-                        if CURRENT_CONFIG.get("skin_applied_key") != skin_key:
+                        if cfg.get("skin_applied_key") != skin_key:
                             lcu_request(
                                 "PATCH",
                                 "/lol-champ-select/v1/session/my-selection",
                                 {"selectedSkinId": int(desired_skin_id)},
                             )
-                            CURRENT_CONFIG["skin_applied_key"] = skin_key
+                            cfg["skin_applied_key"] = skin_key
                     else:
-                        CURRENT_CONFIG.pop("skin_applied_key", None)
+                        cfg.pop("skin_applied_key", None)
                 except Exception as e:
                     print(f"[SKIN] Failed to apply skin: {e}")
         except Exception as e:

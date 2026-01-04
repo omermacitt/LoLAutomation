@@ -30,7 +30,7 @@ python main.py
 python -m PyInstaller --clean -y run_app.spec
 ```
 
-Çıktı: `dist/RunePilot.exe`
+Çıktı: `dist/RunePilot/RunePilot.exe`
 
 ## Installer Derleme (Inno Setup)
 
