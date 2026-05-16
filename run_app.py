@@ -14,7 +14,7 @@ import traceback
 # Ensure the current directory is in sys.path so we can import modules
 sys.path.append(os.path.abspath(os.path.dirname(__file__)))
 
-from app_meta import APP_DISPLAY_NAME, APP_ID
+from src.rune_pilot.shared.app_meta import APP_DISPLAY_NAME, APP_ID
 
 def get_log_path() -> str:
     """Uygulama log dosyası yolunu (`%APPDATA%\\RunePilot\\run_app.log`) döndürür."""
@@ -60,7 +60,8 @@ def start_server() -> None:
                 "uvicorn.access": {"handlers": ["default"], "level": "WARNING", "propagate": False},
             },
         }
-        from api import app
+        from src.rune_pilot.composition.api_app import create_app
+        app = create_app()
 
         uvicorn.run(app, host="127.0.0.1", port=8000, log_level="info", log_config=log_config)
     except Exception as e:
@@ -76,7 +77,7 @@ if __name__ == "__main__":
         server_thread.start()
 
         # Run the GUI in the main thread
-        from desktop_app import main as start_gui
+        from src.rune_pilot.presentation.main_window import main as start_gui
 
         start_gui()
     except Exception as e:
