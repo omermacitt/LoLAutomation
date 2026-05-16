@@ -13,12 +13,12 @@ from typing import Any
 
 from src.rune_pilot.infrastructure.lcu_client import lcu_request
 from src.rune_pilot.domain.champion_service import normalize_champion_id, normalize_spell_id
-from src.rune_pilot.domain.rune_service import (
+from src.rune_pilot.application.rune_service import (
     get_recommended_page_for_champion,
     build_rune_page_name,
-    _safe_int_list,
 )
-from src.rune_pilot.domain.champion_service import get_champion_name_by_id
+from src.rune_pilot.application.champion_query import get_champion_name_by_id
+from src.rune_pilot.shared.utils import safe_int_list
 from src.rune_pilot.application.lobby_service import (
     do_ban,
     auto_pick_impl,
@@ -92,7 +92,7 @@ def apply_runes_impl(session: dict[str, Any], cfg: dict[str, Any]) -> bool:
                 except (TypeError, ValueError):
                     candidate = None
 
-                if candidate is not None and len(_safe_int_list(candidate.get("selectedPerkIds"))) != 9:
+                if candidate is not None and len(safe_int_list(candidate.get("selectedPerkIds"))) != 9:
                     candidate = None
 
                 if candidate is None:
@@ -131,7 +131,7 @@ def apply_runes_impl(session: dict[str, Any], cfg: dict[str, Any]) -> bool:
             print(f"[RUNES] Invalid style ids for championId={my_champ_id}: {page_data}")
             return False
 
-        selected = _safe_int_list(page_data.get("selectedPerkIds"))
+        selected = safe_int_list(page_data.get("selectedPerkIds"))
         if len(selected) != 9:
             print(f"[RUNES] Invalid selectedPerkIds for championId={my_champ_id}: {page_data.get('selectedPerkIds')}")
             return False

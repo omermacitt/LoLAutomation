@@ -10,12 +10,9 @@ import time
 from typing import Any
 
 from src.rune_pilot.infrastructure.lcu_client import lcu_request
-from src.rune_pilot.domain.champion_service import (
-    normalize_champion_id,
-    normalize_spell_id,
-    get_champion_name_by_id,
-)
-from src.rune_pilot.domain.rune_service import _safe_int_list
+from src.rune_pilot.domain.champion_service import normalize_champion_id, normalize_spell_id
+from src.rune_pilot.application.champion_query import get_champion_name_by_id
+from src.rune_pilot.shared.utils import safe_int_list
 
 LAST_BAN_SKIP: tuple[int, int] | None = None
 
@@ -27,7 +24,7 @@ def is_banned(session: dict[str, Any], champ_id: int) -> bool:
         return False
 
     all_bans_raw = (bans.get("myTeamBans") or []) + (bans.get("theirTeamBans") or [])
-    all_bans = set(_safe_int_list(all_bans_raw))
+    all_bans = set(safe_int_list(all_bans_raw))
     try:
         champ_id_int = int(champ_id)
     except (TypeError, ValueError):

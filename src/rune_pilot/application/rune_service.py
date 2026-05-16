@@ -2,6 +2,7 @@
 RunePilot rün servisi.
 
 Rün sayfası önerisi, isim oluşturma ve rün verisi işleme.
+Moved from domain/ because it depends on infrastructure (rune_data_provider).
 """
 
 from __future__ import annotations
@@ -10,21 +11,9 @@ import re
 from typing import Any
 
 from src.rune_pilot.domain.constants import STYLE_ID_BY_NAME, MAX_RUNE_PAGE_NAME_LEN
-from src.rune_pilot.domain.champion_service import get_champion_slug_by_id
+from src.rune_pilot.application.champion_query import get_champion_slug_by_id
 from src.rune_pilot.infrastructure.rune_data_provider import get_runes_data
-
-
-def _safe_int_list(values: Any) -> list[int]:
-    """Liste içindeki değerleri int'e çevirir; çevrilemeyenleri atlar."""
-    result: list[int] = []
-    if not isinstance(values, list):
-        return result
-    for v in values:
-        try:
-            result.append(int(v))
-        except (TypeError, ValueError):
-            continue
-    return result
+from src.rune_pilot.shared.utils import safe_int_list
 
 
 def build_rune_page_name(*, prefix: str, champion_name: str) -> str:
@@ -70,7 +59,7 @@ def get_recommended_page_for_champion(champ_id: int) -> dict | None:
         except (TypeError, ValueError):
             return None
 
-        selected = _safe_int_list(direct.get("selectedPerkIds"))
+        selected = safe_int_list(direct.get("selectedPerkIds"))
         if len(selected) != 9:
             return None
 
@@ -157,13 +146,13 @@ def get_recommended_page_for_champion(champ_id: int) -> dict | None:
         if primary_style_id is None or secondary_style_id is None:
             return None
 
-        primary_ids = _safe_int_list(rune_blob.get(primary_key))
-        secondary_ids = _safe_int_list(rune_blob.get(secondary_key))
+        primary_ids = safe_int_list(rune_blob.get(primary_key))
+        secondary_ids = safe_int_list(rune_blob.get(secondary_key))
 
         shards_ids: list[int] = []
         for k, v in rune_blob.items():
             if isinstance(k, str) and k.strip().lower() == "shards":
-                shards_ids = _safe_int_list(v)
+                shards_ids = safe_int_list(v)
                 break
 
         selected = primary_ids[:4] + secondary_ids[:2] + shards_ids[:3]

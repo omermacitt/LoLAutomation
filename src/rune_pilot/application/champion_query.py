@@ -9,7 +9,79 @@ from __future__ import annotations
 from typing import Any
 
 from src.rune_pilot.infrastructure.lcu_client import lcu_request
-from src.rune_pilot.domain.champion_service import normalize_champion_id
+from src.rune_pilot.domain.champion_service import normalize_champion_id, champion_slug_from_alias
+
+# Cache'ler: LCU'dan okunan veriler burada tutulur.
+CHAMP_SLUG_BY_ID: dict[int, str] = {}
+CHAMP_NAME_BY_ID: dict[int, str] = {}
+
+
+def get_champion_slug_by_id(champ_id: int) -> str | None:
+    """LCU verisinden champ_id için runes.json slug'ını çözer (cache'li)."""
+    if champ_id in CHAMP_SLUG_BY_ID:
+        return CHAMP_SLUG_BY_ID[champ_id]
+
+    try:
+        res = lcu_request("GET", "/lol-game-data/assets/v1/champion-summary.json")
+        if res.status_code != 200:
+            return None
+        champs = res.json()
+        if not isinstance(champs, list):
+            return None
+
+        for champ in champs:
+            if not isinstance(champ, dict):
+                continue
+            cid = champ.get("id")
+            try:
+                cid_int = int(cid)
+            except (TypeError, ValueError):
+                continue
+
+            name = champ.get("name") or champ.get("alias") or ""
+            if name and cid_int not in CHAMP_NAME_BY_ID:
+                CHAMP_NAME_BY_ID[cid_int] = str(name)
+
+            alias = champ.get("alias") or champ.get("name") or ""
+            slug = champion_slug_from_alias(str(alias))
+            if slug:
+                CHAMP_SLUG_BY_ID[cid_int] = slug
+
+        return CHAMP_SLUG_BY_ID.get(champ_id)
+    except Exception:
+        return None
+
+
+def get_champion_name_by_id(champ_id: int) -> str | None:
+    """LCU verisinden champ_id için görünen şampiyon adını döndürür (cache'li)."""
+    if champ_id in CHAMP_NAME_BY_ID:
+        return CHAMP_NAME_BY_ID[champ_id]
+    get_champion_slug_by_id(champ_id)
+    return CHAMP_NAME_BY_ID.get(champ_id)
+
+
+def get_champion_summary() -> list[dict[str, Any]]:
+    """LCU'dan tüm şampiyonları döndürür (ban comboları için)."""
+    try:
+        res = lcu_request("GET", "/lol-game-data/assets/v1/champion-summary.json")
+        if res.status_code != 200:
+            return []
+        data = res.json()
+        return data if isinstance(data, list) else []
+    except Exception:
+        return []
+
+
+def get_owned_champions_raw() -> list[dict[str, Any]]:
+    """LCU'dan sahip olunan şampiyonların ham listesini döndürür."""
+    try:
+        res = lcu_request("GET", "/lol-champions/v1/owned-champions-minimal")
+        if res.status_code != 200:
+            return []
+        data = res.json()
+        return data if isinstance(data, list) else []
+    except Exception:
+        return []
 
 
 def load_champions_map() -> dict[int, dict[str, Any]]:

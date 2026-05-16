@@ -25,15 +25,11 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from src.rune_pilot.infrastructure.lcu_client import lcu_request
+from src.rune_pilot.application.perk_query import get_perk_styles, get_perks, get_perk_icon_bytes
 
 MAIN_STYLE_IDS: set[int] = {8000, 8100, 8200, 8300, 8400}
 STAT_MODS_STYLE_ID = 5000
 DEFAULT_ICON_SIZE = QSize(24, 24)
-
-# Cache perk/style data per process to avoid repeated LCU calls.
-_PERK_STYLES_CACHE: list[dict[str, Any]] | None = None
-_PERKS_CACHE: list[dict[str, Any]] | None = None
 
 
 def _safe_int(value: Any) -> int | None:
@@ -89,44 +85,12 @@ def _get_slot_runes(slot: Any) -> list[Any]:
 
 def _fetch_perk_styles() -> list[dict[str, Any]]:
     """LCU üzerinden rune style listesini okur."""
-    global _PERK_STYLES_CACHE
-    if _PERK_STYLES_CACHE is not None:
-        return _PERK_STYLES_CACHE
-    res = lcu_request("GET", "/lol-perks/v1/styles")
-    res.raise_for_status()
-    data = res.json()
-    if not isinstance(data, list):
-        raise ValueError("Unexpected response from /lol-perks/v1/styles")
-    _PERK_STYLES_CACHE = data
-    return data
+    return get_perk_styles()
 
 
 def _fetch_perks() -> list[dict[str, Any]]:
     """LCU üzerinden perk listesini okur (farklı endpoint'lere fallback)."""
-    global _PERKS_CACHE
-    if _PERKS_CACHE is not None:
-        return _PERKS_CACHE
-    endpoints = (
-        "/lol-perks/v1/perks",
-        "/lol-game-data/assets/v1/perks.json",
-    )
-    last_error: Exception | None = None
-    for endpoint in endpoints:
-        try:
-            res = lcu_request("GET", endpoint)
-            res.raise_for_status()
-            data = res.json()
-            if isinstance(data, list):
-                _PERKS_CACHE = data
-                return data
-            if isinstance(data, dict) and isinstance(data.get("perks"), list):
-                _PERKS_CACHE = data["perks"]
-                return data["perks"]
-            last_error = ValueError(f"Unexpected response from {endpoint}")
-        except Exception as e:
-            last_error = e
-            continue
-    raise ValueError("Could not fetch perks") from last_error
+    return get_perks()
 
 
 def _normalize_asset_path(icon_path: str | None) -> str | None:
@@ -306,21 +270,17 @@ class RunePageDialog(QDialog):
             self._perk_icons[pid] = None
             return None
 
-        try:
-            res = lcu_request("GET", asset_path)
-            if res.status_code != 200:
-                self._perk_icons[pid] = None
-                return None
-            pixmap = QPixmap()
-            if not pixmap.loadFromData(res.content):
-                self._perk_icons[pid] = None
-                return None
-            icon = QIcon(pixmap)
-            self._perk_icons[pid] = icon
-            return icon
-        except Exception:
+        icon_bytes = get_perk_icon_bytes(asset_path)
+        if icon_bytes is None:
             self._perk_icons[pid] = None
             return None
+        pixmap = QPixmap()
+        if not pixmap.loadFromData(icon_bytes):
+            self._perk_icons[pid] = None
+            return None
+        icon = QIcon(pixmap)
+        self._perk_icons[pid] = icon
+        return icon
 
     def _rebuild_secondary_style_items(self) -> None:
         selected_primary = self.primary_style_combo.currentData()

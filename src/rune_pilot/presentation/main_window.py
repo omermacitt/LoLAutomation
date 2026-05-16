@@ -51,7 +51,9 @@ from PyQt6.QtCore import Qt, QTimer, QObject, QEvent, pyqtSignal, QSize
 
 from win10toast import ToastNotifier
 
-from src.rune_pilot.infrastructure.lcu_client import lcu_request
+from src.rune_pilot.application.skin_query import get_skin_options_for_champion
+from src.rune_pilot.application.champion_query import get_champion_summary, get_owned_champions_raw
+from src.rune_pilot.application.lobby_service import get_gameflow_phase_safe
 from src.rune_pilot.presentation.dialogs.skins_dialog import SkinSelectDialog
 from src.rune_pilot.presentation.dialogs.rune_presets_dialog import RunePresetsDialog
 from src.rune_pilot.presentation.widgets.searchable_combo import make_combo_searchable
@@ -1133,47 +1135,7 @@ class MainWindow(QMainWindow):
         champ_id_int = int(champ_id)
         base_skin_id = champ_id_int * 1000
 
-        skin_name_by_id: dict[int, str] = {}
-        champ_res = lcu_request("GET", f"/lol-game-data/assets/v1/champions/{champ_id_int}.json")
-        if champ_res.status_code == 200:
-            try:
-                champ_json = champ_res.json()
-            except Exception:
-                champ_json = None
-            skins = champ_json.get("skins") if isinstance(champ_json, dict) else None
-            if isinstance(skins, list):
-                for s in skins:
-                    if not isinstance(s, dict):
-                        continue
-                    try:
-                        sid = int(s.get("id"))
-                    except (TypeError, ValueError):
-                        continue
-                    name = s.get("name")
-                    if isinstance(name, str) and name.strip():
-                        skin_name_by_id[sid] = name.strip()
-
-        owned_skin_ids: set[int] = set()
-        inv_res = lcu_request("GET", "/lol-inventory/v2/inventory/CHAMPION_SKIN")
-        if inv_res.status_code == 200:
-            try:
-                inv = inv_res.json()
-            except Exception:
-                inv = None
-            if isinstance(inv, list):
-                lo = base_skin_id
-                hi = base_skin_id + 1000
-                for item in inv:
-                    if not isinstance(item, dict):
-                        continue
-                    if item.get("owned") is not True:
-                        continue
-                    try:
-                        sid = int(item.get("itemId"))
-                    except (TypeError, ValueError):
-                        continue
-                    if lo <= sid < hi and sid != base_skin_id:
-                        owned_skin_ids.add(sid)
+        skin_name_by_id, owned_skin_ids = get_skin_options_for_champion(champ_id_int)
 
         options: list[tuple[int, str]] = []
 
@@ -1877,11 +1839,9 @@ class MainWindow(QMainWindow):
                 cb.clear()
                 cb.addItem("Seçiniz", None)
 
-        try:
-            res = lcu_request("GET", "/lol-game-data/assets/v1/champion-summary.json")
-            all_champs = res.json()
-        except Exception as e:
-            QMessageBox.critical(self, "Hata", f"Şampiyon listesi alınamadı:\n{e}")
+        all_champs = get_champion_summary()
+        if not all_champs:
+            QMessageBox.critical(self, "Hata", "Şampiyon listesi alınamadı. League Client açık mı?")
             return
 
         all_sorted = sorted(all_champs, key=lambda c: c.get("name", ""))
@@ -1898,28 +1858,22 @@ class MainWindow(QMainWindow):
 
         # Pick: prefer owned / free-to-play champions to prevent pick errors
         pick_entries = {}
-        try:
-            res = lcu_request("GET", "/lol-champions/v1/owned-champions-minimal")
-            owned_champs = res.json()
-            if isinstance(owned_champs, list):
-                for champ in owned_champs:
-                    try:
-                        cid = int(champ.get("id"))
-                    except (TypeError, ValueError):
-                        continue
-                    if cid <= 0:
-                        continue
+        for champ in get_owned_champions_raw():
+            try:
+                cid = int(champ.get("id"))
+            except (TypeError, ValueError):
+                continue
+            if cid <= 0:
+                continue
 
-                    ownership = champ.get("ownership", {})
-                    owned = ownership.get("owned")
-                    free_to_play = champ.get("freeToPlay")
-                    if owned is False and not free_to_play:
-                        continue
+            ownership = champ.get("ownership", {})
+            owned = ownership.get("owned")
+            free_to_play = champ.get("freeToPlay")
+            if owned is False and not free_to_play:
+                continue
 
-                    name = champ.get("name") or champ.get("alias") or str(cid)
-                    pick_entries[cid] = name
-        except Exception:
-            pick_entries = {}
+            name = champ.get("name") or champ.get("alias") or str(cid)
+            pick_entries[cid] = name
 
         # Fallback: if we can't read owned champs, keep previous behavior (show all)
         if not pick_entries:
@@ -1945,10 +1899,8 @@ class MainWindow(QMainWindow):
         LCU gameflow fazını izler.
         GameStart veya InProgress olduğunda bir kere bildirim atar.
         """
-        try:
-            res = lcu_request("GET", "/lol-gameflow/v1/gameflow-phase")
-            phase = res.json()
-        except Exception:
+        phase = get_gameflow_phase_safe()
+        if phase is None:
             return
 
         if phase != self.last_phase:
