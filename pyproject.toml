@@ -1,0 +1,28 @@
+[project]
+name = "runepilot"
+version = "0.0.2"
+description = "League of Legends (LCU) champ-select otomasyon aracı: FastAPI servisi + PyQt6 GUI."
+requires-python = ">=3.11"
+
+[tool.black]
+line-length = 100
+target-version = ["py311"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+# Başlangıç için makul bir çekirdek kural seti. Refactor ilerledikçe genişletilebilir.
+select = ["E", "F", "W", "I", "UP", "B"]
+ignore = [
+    "E501",   # satır uzunluğu (black yönetiyor)
+    "B008",   # FastAPI Depends() gibi çağrı-varsayılanları
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["E402"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
