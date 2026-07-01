@@ -3,13 +3,14 @@ LCU (League Client Update) API helper.
 
 League of Legends istemcisi, yerel makinede (127.0.0.1) HTTPS üzerinden bir API
 yayınlar. Bu API'ye erişim için lockfile içindeki port/şifre bilgisi gerekir.
+
+Bu modül, tüm uygulamanın LCU'ya eriştiği **tek** noktadır (infrastructure katmanı).
 """
 
 from __future__ import annotations
 
-from typing import Any
-
 import os
+from typing import Any
 
 import requests
 import urllib3
@@ -54,7 +55,7 @@ def get_lcu_credentials(lockfile_path: str | None = None) -> tuple[str, str]:
     Lockfile formatı genelde: `name:pid:port:password:protocol`
     """
     path = lockfile_path or find_lockfile_path()
-    with open(path, "r", encoding="utf-8", errors="replace") as f:
+    with open(path, encoding="utf-8", errors="replace") as f:
         parts = f.read().strip().split(":")
 
     if len(parts) < 4:

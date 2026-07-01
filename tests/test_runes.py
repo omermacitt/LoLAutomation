@@ -92,7 +92,7 @@ def test_recommended_format2_picks_highest_winrate(monkeypatch):
             }
         },
     )
-    monkeypatch.setattr(api, "get_champion_slug_by_id", lambda champ_id: "annie")
+    monkeypatch.setattr(api.champion_repo, "get_slug_by_id", lambda champ_id: "annie")
 
     page = api.get_recommended_page_for_champion(1)
     assert page is not None
@@ -105,5 +105,5 @@ def test_recommended_format2_picks_highest_winrate(monkeypatch):
 
 def test_recommended_returns_none_for_unknown_slug(monkeypatch):
     monkeypatch.setattr(api, "RUNES_DATA", {})
-    monkeypatch.setattr(api, "get_champion_slug_by_id", lambda champ_id: None)
+    monkeypatch.setattr(api.champion_repo, "get_slug_by_id", lambda champ_id: None)
     assert api.get_recommended_page_for_champion(1) is None

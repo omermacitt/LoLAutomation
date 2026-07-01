@@ -7,7 +7,8 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 
-from lcu import lcu_request
+from runepilot.domain.champions import champion_slug_from_alias
+from runepilot.infrastructure.lcu_client import lcu_request
 
 
 def extract_selected_rune_ids(container):
@@ -84,14 +85,8 @@ def champion_slug(champion: dict) -> str:
     Temel mantık: alias'ı lower() yapmak, bazı özel isimler için
     manuel map gerekirse buraya eklenebilir.
     """
-    alias = (champion.get("alias") or champion.get("name") or "").strip()
-    special = {
-        "MonkeyKing": "wukong",
-        "FiddleSticks": "fiddlesticks",
-    }
-    if alias in special:
-        return special[alias]
-    return alias.lower()
+    alias = champion.get("alias") or champion.get("name") or ""
+    return champion_slug_from_alias(str(alias))
 
 
 def scrape_runes_for_champion(driver: webdriver.Chrome, slug: str) -> dict:

@@ -47,7 +47,8 @@ from PyQt6.QtCore import Qt, QTimer, QObject, QEvent, pyqtSignal, QSize
 
 from win10toast import ToastNotifier
 
-from lcu import lcu_request  # mevcut projenizdeki lcu.py'den
+from runepilot.infrastructure.lcu_client import lcu_request
+from runepilot.infrastructure.resource_paths import resource_path
 from skins_dialog import SkinSelectDialog
 from rune_presets_dialog import RunePresetsDialog
 
@@ -169,15 +170,6 @@ def make_combo_searchable(combo: QComboBox, *, placeholder: str = "Ara...") -> N
 
     le.editingFinished.connect(restore_valid_text)
 
-def resource_path(relative_path: str) -> str:
-    """
-    Get absolute path to a bundled resource, works for dev and for PyInstaller.
-    """
-    try:
-        base_path = sys._MEIPASS
-    except Exception:
-        base_path = os.path.abspath(os.path.dirname(__file__))
-    return os.path.join(base_path, relative_path)
 
 def get_config_file_path(app_id: str) -> str:
     """Kullanıcı ayar dosyasının (JSON) lokasyonunu döndürür."""
