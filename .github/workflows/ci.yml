@@ -1,0 +1,34 @@
+name: CI
+
+# main'e her push'ta ve her pull request'te otomatik çalışır.
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    name: Test + Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      # Not: requirements.txt Windows'a özel win10toast içerdiğinden Linux CI'da
+      # tam kurulamaz. Testlerin ihtiyaç duyduğu minimal bağımlılıklar + kalite araçları:
+      - name: Bağımlılıkları kur
+        run: pip install fastapi pydantic requests pytest ruff black
+
+      - name: Testler (pytest)
+        run: python -m pytest
+
+      # Lint/format şimdilik yalnızca standarda uygun (yeni/refactor edilmiş) dosyalarda
+      # zorunlu. Legacy kod refactor fazlarında temizlendikçe bu liste genişletilecek.
+      - name: Lint (ruff)
+        run: ruff check app_meta.py updater.py conftest.py tests/
+
+      - name: Format kontrolü (black)
+        run: black --check app_meta.py updater.py conftest.py tests/
