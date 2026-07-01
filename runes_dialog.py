@@ -25,7 +25,7 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from lcu import lcu_request
+from runepilot.infrastructure.lcu_client import lcu_request
 
 MAIN_STYLE_IDS: set[int] = {8000, 8100, 8200, 8300, 8400}
 STAT_MODS_STYLE_ID = 5000

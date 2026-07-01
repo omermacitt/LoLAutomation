@@ -28,7 +28,7 @@ jobs:
       # Lint/format şimdilik yalnızca standarda uygun (yeni/refactor edilmiş) dosyalarda
       # zorunlu. Legacy kod refactor fazlarında temizlendikçe bu liste genişletilecek.
       - name: Lint (ruff)
-        run: ruff check app_meta.py updater.py conftest.py tests/
+        run: ruff check runepilot/ app_meta.py updater.py conftest.py tests/
 
       - name: Format kontrolü (black)
-        run: black --check app_meta.py updater.py conftest.py tests/
+        run: black --check runepilot/ app_meta.py updater.py conftest.py tests/

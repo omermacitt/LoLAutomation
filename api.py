@@ -10,7 +10,6 @@ from __future__ import annotations
 import json
 import os
 import re
-import sys
 import threading
 import time
 from typing import Any
@@ -18,8 +17,12 @@ from typing import Any
 from fastapi import FastAPI
 from pydantic import BaseModel, Field
 
-from lcu import lcu_request
 from app_meta import __version__
+
+from runepilot.domain.champions import champion_slug_from_alias
+from runepilot.infrastructure.champion_repo import ChampionRepo
+from runepilot.infrastructure.lcu_client import lcu_request
+from runepilot.infrastructure.resource_paths import resource_path
 
 app = FastAPI()
 
@@ -31,20 +34,9 @@ STYLE_ID_BY_NAME: dict[str, int] = {
     "resolve": 8400,
 }
 
-CHAMP_SLUG_BY_ID: dict[int, str] = {}
-CHAMP_NAME_BY_ID: dict[int, str] = {}
+champion_repo = ChampionRepo()
 MAX_RUNE_PAGE_NAME_LEN = 16
 LAST_BAN_SKIP: tuple[int, int] | None = None
-
-def resource_path(relative_path: str) -> str:
-    """PyInstaller ile paketlenmiş dosyalar için güvenli mutlak yol döndürür."""
-    try:
-        base_path = sys._MEIPASS
-    except Exception:
-        # Use the directory of this file instead of CWD so double-click / different
-        # launch contexts can still find bundled data like runes.json.
-        base_path = os.path.abspath(os.path.dirname(__file__))
-    return os.path.join(base_path, relative_path)
 
 RUNES_FILE = resource_path("runes.json")
 
@@ -59,65 +51,6 @@ def load_runes() -> dict[str, Any]:
         return {}
 
 RUNES_DATA = load_runes()
-
-def champion_slug_from_alias(alias: str) -> str:
-    """
-    Must match the slug format used when generating runes.json (see webscrapping.py).
-    """
-    alias = (alias or "").strip()
-    special = {
-        "MonkeyKing": "wukong",
-        "FiddleSticks": "fiddlesticks",
-    }
-    if alias in special:
-        return special[alias]
-    return alias.lower()
-
-
-def get_champion_slug_by_id(champ_id: int) -> str | None:
-    """LCU verisinden champ_id için runes.json slug'ını çözer (cache'li)."""
-    if champ_id in CHAMP_SLUG_BY_ID:
-        return CHAMP_SLUG_BY_ID[champ_id]
-
-    try:
-        res = lcu_request("GET", "/lol-game-data/assets/v1/champion-summary.json")
-        if res.status_code != 200:
-            return None
-        champs = res.json()
-        if not isinstance(champs, list):
-            return None
-
-        for champ in champs:
-            if not isinstance(champ, dict):
-                continue
-            cid = champ.get("id")
-            try:
-                cid_int = int(cid)
-            except (TypeError, ValueError):
-                continue
-
-            name = champ.get("name") or champ.get("alias") or ""
-            if name and cid_int not in CHAMP_NAME_BY_ID:
-                CHAMP_NAME_BY_ID[cid_int] = str(name)
-
-            alias = champ.get("alias") or champ.get("name") or ""
-            slug = champion_slug_from_alias(str(alias))
-            if slug:
-                CHAMP_SLUG_BY_ID[cid_int] = slug
-
-        return CHAMP_SLUG_BY_ID.get(champ_id)
-    except Exception:
-        return None
-
-
-def get_champion_name_by_id(champ_id: int) -> str | None:
-    """LCU verisinden champ_id için görünen şampiyon adını döndürür (cache'li)."""
-    if champ_id in CHAMP_NAME_BY_ID:
-        return CHAMP_NAME_BY_ID[champ_id]
-    # Populate caches (slug+name) from the LCU champion summary.
-    get_champion_slug_by_id(champ_id)
-    return CHAMP_NAME_BY_ID.get(champ_id)
-
 
 def build_rune_page_name(*, prefix: str, champion_name: str) -> str:
     """LoL client rune sayfası isim limitine göre güvenli bir isim üretir."""
@@ -180,7 +113,7 @@ def get_recommended_page_for_champion(champ_id: int) -> dict | None:
         return {"primaryStyleId": primary_style_id, "subStyleId": sub_style_id, "selectedPerkIds": selected}
 
     # Format 2: slug -> rune_1 -> tree lists
-    slug = get_champion_slug_by_id(champ_id)
+    slug = champion_repo.get_slug_by_id(champ_id)
     if not slug:
         return None
     champ_blob = RUNES_DATA.get(slug)
@@ -422,7 +355,7 @@ def do_ban(session: dict[str, Any], champ_id: int) -> None:
                     key = None
 
                 if key is not None and LAST_BAN_SKIP != key:
-                    champ_name = get_champion_name_by_id(int(champ_id)) or str(champ_id)
+                    champ_name = champion_repo.get_name_by_id(int(champ_id)) or str(champ_id)
                     print(
                         f"[BAN] Skipping ban for {champ_name} ({champ_id}) because a teammate is showing it"
                     )
@@ -590,49 +523,10 @@ def auto_pick_impl(session: dict[str, Any], champion_ids: list[int]) -> dict[str
     return {"status": "pick_failed", "attempted": candidate_ids, "last_error": last_error}
 
 
-def load_champions_map() -> dict[int, dict[str, Any]]:
-    """
-    LCU üzerinden oyuncunun sahip olduğu şampiyonları okur.
-
-    Dönüş formatı: `{championId: {"id": int, "name": str, "alias": str}}`
-    """
-    try:
-        res = lcu_request("GET", "/lol-champions/v1/owned-champions-minimal")
-        if res.status_code != 200:
-            return {}
-
-        champs = res.json()
-        if not isinstance(champs, list):
-            return {}
-
-        valid_champs: dict[int, dict[str, Any]] = {}
-        for champ in champs:
-            if not isinstance(champ, dict):
-                continue
-
-            cid = normalize_champion_id(champ.get("id"))
-            if cid is None:
-                continue
-
-            ownership = champ.get("ownership") or {}
-            if isinstance(ownership, dict) and ownership.get("owned") is False:
-                continue
-
-            valid_champs[cid] = {
-                "id": cid,
-                "name": str(champ.get("name") or "Unknown"),
-                "alias": str(champ.get("alias") or ""),
-            }
-
-        return valid_champs
-    except Exception as e:
-        print(f"[API] Error loading owned champions: {e}")
-        return {}
-
 @app.get("/champions")
 def get_champions():
     """UI için sahip olunan şampiyon listesini döndürür."""
-    champs_map = load_champions_map()
+    champs_map = champion_repo.load_owned_map()
     if not champs_map:
         return []
     return sorted(champs_map.values(), key=lambda x: x.get("name", ""))
@@ -795,7 +689,7 @@ def apply_runes_impl(session: dict[str, Any], cfg: dict[str, Any]) -> bool:
             page_data = {**recommended}
             used_custom = False
 
-        champ_name = get_champion_name_by_id(my_champ_id) or str(my_champ_id)
+        champ_name = champion_repo.get_name_by_id(my_champ_id) or str(my_champ_id)
         if used_custom and used_slot is not None:
             name_prefix = f"Custom {used_slot}"
         else:
