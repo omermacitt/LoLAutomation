@@ -5,10 +5,10 @@ from __future__ import annotations
 import time
 from typing import Any
 
-from src.rune_pilot.infrastructure.lcu_client import lcu_request
-from src.rune_pilot.domain.champion_service import normalize_champion_id, normalize_spell_id
-from src.rune_pilot.application.champion_query import get_champion_name_by_id
-from src.rune_pilot.shared.utils import safe_int_list
+from rune_pilot.infrastructure.lcu_client import lcu_request
+from rune_pilot.domain.champion_service import normalize_champion_id, normalize_spell_id
+from rune_pilot.application.champion_query import get_champion_name_by_id
+from rune_pilot.shared.utils import safe_int_list
 
 LAST_BAN_SKIP: tuple[int, int] | None = None
 

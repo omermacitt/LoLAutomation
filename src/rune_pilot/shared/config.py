@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import os
 
-from src.rune_pilot.shared.app_meta import APP_ID, LEGACY_APP_ID
+from rune_pilot.shared.app_meta import APP_ID, LEGACY_APP_ID
 
 
 def get_config_file_path(app_id: str) -> str:

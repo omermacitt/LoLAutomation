@@ -6,7 +6,7 @@ import datetime
 import os
 import traceback
 
-from src.rune_pilot.shared.app_meta import APP_ID
+from rune_pilot.shared.app_meta import APP_ID
 
 
 def get_log_path() -> str:

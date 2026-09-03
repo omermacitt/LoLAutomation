@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from src.rune_pilot.infrastructure.lcu_client import lcu_request
+from rune_pilot.infrastructure.lcu_client import lcu_request
 
 
 def get_skin_options_for_champion(champ_id: int) -> tuple[dict[int, str], set[int]]:

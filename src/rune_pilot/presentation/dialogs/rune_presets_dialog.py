@@ -14,7 +14,7 @@ from PyQt6.QtWidgets import (
     QVBoxLayout,
 )
 
-from src.rune_pilot.presentation.dialogs.runes_dialog import RunePageDialog
+from rune_pilot.presentation.dialogs.runes_dialog import RunePageDialog
 
 
 class RunePresetsDialog(QDialog):

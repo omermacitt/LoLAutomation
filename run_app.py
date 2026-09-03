@@ -11,10 +11,12 @@ import os
 import datetime
 import traceback
 
-# Ensure the current directory is in sys.path so we can import modules
-sys.path.append(os.path.abspath(os.path.dirname(__file__)))
+# Allow running straight from a source checkout, with no `pip install -e .`
+_SRC_DIR = os.path.join(os.path.abspath(os.path.dirname(__file__)), "src")
+if os.path.isdir(_SRC_DIR) and _SRC_DIR not in sys.path:
+    sys.path.insert(0, _SRC_DIR)
 
-from src.rune_pilot.shared.app_meta import APP_DISPLAY_NAME, APP_ID
+from rune_pilot.shared.app_meta import APP_DISPLAY_NAME, APP_ID
 
 def get_log_path() -> str:
     """Returns the application log file path (`%APPDATA%\\RunePilot\\run_app.log`)."""
@@ -60,7 +62,7 @@ def start_server() -> None:
                 "uvicorn.access": {"handlers": ["default"], "level": "WARNING", "propagate": False},
             },
         }
-        from src.rune_pilot.composition.api_app import create_app
+        from rune_pilot.composition.api_app import create_app
         app = create_app()
 
         uvicorn.run(app, host="127.0.0.1", port=8000, log_level="info", log_config=log_config)
@@ -78,7 +80,7 @@ if __name__ == "__main__":
 
         # Auto-launch Riot Client if it isn't already running
         try:
-            from src.rune_pilot.infrastructure.riot_client import is_riot_client_running, launch_riot_client
+            from rune_pilot.infrastructure.riot_client import is_riot_client_running, launch_riot_client
             if not is_riot_client_running():
                 log_line("[RUN_APP] Riot Client not running — launching automatically...")
                 launch_riot_client()
@@ -86,7 +88,7 @@ if __name__ == "__main__":
             log_line(f"[RUN_APP] Could not auto-launch Riot Client: {e}")
 
         # Run the GUI in the main thread
-        from src.rune_pilot.presentation.main_window import main as start_gui
+        from rune_pilot.presentation.main_window import main as start_gui
 
         start_gui()
     except Exception as e:

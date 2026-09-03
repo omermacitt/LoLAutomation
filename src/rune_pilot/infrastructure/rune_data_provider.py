@@ -6,7 +6,7 @@ import json
 import os
 from typing import Any
 
-from src.rune_pilot.shared.resource import resource_path
+from rune_pilot.shared.resource import resource_path
 
 RUNES_FILE = resource_path("runes.json")
 

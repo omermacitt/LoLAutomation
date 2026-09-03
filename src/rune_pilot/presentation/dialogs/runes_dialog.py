@@ -25,7 +25,7 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from src.rune_pilot.application.perk_query import get_perk_styles, get_perks, get_perk_icon_bytes
+from rune_pilot.application.perk_query import get_perk_styles, get_perks, get_perk_icon_bytes
 
 MAIN_STYLE_IDS: set[int] = {8000, 8100, 8200, 8300, 8400}
 STAT_MODS_STYLE_ID = 5000

@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from typing import Any
 
-from src.rune_pilot.infrastructure.lcu_client import lcu_request
-from src.rune_pilot.domain.champion_service import normalize_champion_id, champion_slug_from_alias
+from rune_pilot.infrastructure.lcu_client import lcu_request
+from rune_pilot.domain.champion_service import normalize_champion_id, champion_slug_from_alias
 
 # In-process caches populated from LCU data.
 CHAMP_SLUG_BY_ID: dict[int, str] = {}

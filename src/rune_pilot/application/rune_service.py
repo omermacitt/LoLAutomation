@@ -9,10 +9,10 @@ from __future__ import annotations
 import re
 from typing import Any
 
-from src.rune_pilot.domain.constants import STYLE_ID_BY_NAME, MAX_RUNE_PAGE_NAME_LEN
-from src.rune_pilot.application.champion_query import get_champion_slug_by_id
-from src.rune_pilot.infrastructure.rune_data_provider import get_runes_data
-from src.rune_pilot.shared.utils import safe_int_list
+from rune_pilot.domain.constants import STYLE_ID_BY_NAME, MAX_RUNE_PAGE_NAME_LEN
+from rune_pilot.application.champion_query import get_champion_slug_by_id
+from rune_pilot.infrastructure.rune_data_provider import get_runes_data
+from rune_pilot.shared.utils import safe_int_list
 
 
 def build_rune_page_name(*, prefix: str, champion_name: str) -> str:

@@ -13,7 +13,7 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 
-from src.rune_pilot.infrastructure.lcu_client import lcu_request
+from rune_pilot.infrastructure.lcu_client import lcu_request
 
 
 def extract_selected_rune_ids(container):

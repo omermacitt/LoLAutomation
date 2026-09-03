@@ -7,7 +7,7 @@ import tempfile
 import webbrowser
 import requests
 
-from src.rune_pilot.shared.app_meta import (
+from rune_pilot.shared.app_meta import (
     APP_DISPLAY_NAME,
     APP_ID,
     LEGACY_APP_ID,
@@ -15,9 +15,9 @@ from src.rune_pilot.shared.app_meta import (
     UPDATE_REPO_DEFAULT,
     __version__,
 )
-from src.rune_pilot.shared.updater import UpdateInfo, check_for_update, download_asset
-from src.rune_pilot.shared.resource import resource_path
-from src.rune_pilot.shared.config import CONFIG_FILE, LEGACY_APP_CONFIG_FILE
+from rune_pilot.shared.updater import UpdateInfo, check_for_update, download_asset
+from rune_pilot.shared.resource import resource_path
+from rune_pilot.shared.config import CONFIG_FILE, LEGACY_APP_CONFIG_FILE
 
 from PyQt6.QtGui import QIcon, QAction
 from PyQt6.QtWidgets import (
@@ -46,15 +46,15 @@ from PyQt6.QtCore import Qt, QTimer, QObject, QEvent, pyqtSignal, QSize
 
 from win10toast import ToastNotifier
 
-from src.rune_pilot.application.skin_query import get_skin_options_for_champion
-from src.rune_pilot.application.champion_query import get_champion_summary, get_owned_champions_raw
-from src.rune_pilot.application.lobby_service import get_gameflow_phase_safe
-from src.rune_pilot.presentation.dialogs.skins_dialog import SkinSelectDialog
-from src.rune_pilot.presentation.dialogs.rune_presets_dialog import RunePresetsDialog
-from src.rune_pilot.presentation.widgets.searchable_combo import make_combo_searchable
-from src.rune_pilot.application.account_service import AccountService
-from src.rune_pilot.domain.constants import QUEUE_MODES, ROLES, SUMMONER_SPELLS, SPELL_NAME_BY_ID
-from src.rune_pilot.presentation.styles import STYLESHEET
+from rune_pilot.application.skin_query import get_skin_options_for_champion
+from rune_pilot.application.champion_query import get_champion_summary, get_owned_champions_raw
+from rune_pilot.application.lobby_service import get_gameflow_phase_safe
+from rune_pilot.presentation.dialogs.skins_dialog import SkinSelectDialog
+from rune_pilot.presentation.dialogs.rune_presets_dialog import RunePresetsDialog
+from rune_pilot.presentation.widgets.searchable_combo import make_combo_searchable
+from rune_pilot.application.account_service import AccountService
+from rune_pilot.domain.constants import QUEUE_MODES, ROLES, SUMMONER_SPELLS, SPELL_NAME_BY_ID
+from rune_pilot.presentation.styles import STYLESHEET
 
 API_BASE = "http://127.0.0.1:8000"
 API_TIMEOUT_SEC = 3
@@ -1943,9 +1943,9 @@ def main() -> None:
     except Exception:
         pass
 
-    from src.rune_pilot.presentation.login_window import LoginWindow
-    from src.rune_pilot.application.account_service import AccountService
-    from src.rune_pilot.shared.config import CONFIG_FILE
+    from rune_pilot.presentation.login_window import LoginWindow
+    from rune_pilot.application.account_service import AccountService
+    from rune_pilot.shared.config import CONFIG_FILE
 
     # 1. Launcher: Login Window
     account_service = AccountService(CONFIG_FILE)

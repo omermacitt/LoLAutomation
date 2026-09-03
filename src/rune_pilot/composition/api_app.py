@@ -2,7 +2,7 @@
 
 from fastapi import FastAPI
 
-from src.rune_pilot.composition.endpoints import register_routes
+from rune_pilot.composition.endpoints import register_routes
 
 
 def create_app() -> FastAPI:

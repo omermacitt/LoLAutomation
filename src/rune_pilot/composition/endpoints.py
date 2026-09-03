@@ -4,16 +4,16 @@ from __future__ import annotations
 
 from fastapi import FastAPI
 
-from src.rune_pilot.shared.app_meta import __version__
-from src.rune_pilot.domain.models import AutomationConfig
-from src.rune_pilot.application.automation import (
+from rune_pilot.shared.app_meta import __version__
+from rune_pilot.domain.models import AutomationConfig
+from rune_pilot.application.automation import (
     RUNNING,
     CURRENT_CONFIG,
     AUTOMATION_THREAD,
     AUTOMATION_LOCK,
     automation_loop,
 )
-from src.rune_pilot.application.champion_query import get_champions as _get_champions
+from rune_pilot.application.champion_query import get_champions as _get_champions
 
 import threading
 
@@ -24,7 +24,7 @@ def register_routes(app: FastAPI) -> None:
     @app.get("/health")
     def health():
         """Simple health-check endpoint."""
-        from src.rune_pilot.application.automation import RUNNING as _running
+        from rune_pilot.application.automation import RUNNING as _running
         return {"status": "ok", "running": _running, "version": __version__}
 
     @app.get("/champions")
@@ -35,7 +35,7 @@ def register_routes(app: FastAPI) -> None:
     @app.post("/start_automation")
     def start_automation(config: AutomationConfig):
         """Starts the automation loop or updates the running configuration."""
-        import src.rune_pilot.application.automation as auto
+        import rune_pilot.application.automation as auto
 
         with auto.AUTOMATION_LOCK:
             auto.CURRENT_CONFIG = config.model_dump()
@@ -51,7 +51,7 @@ def register_routes(app: FastAPI) -> None:
     @app.post("/stop_automation")
     def stop_automation():
         """Stops the automation loop (the thread exits on its next iteration)."""
-        import src.rune_pilot.application.automation as auto
+        import rune_pilot.application.automation as auto
 
         with auto.AUTOMATION_LOCK:
             auto.RUNNING = False

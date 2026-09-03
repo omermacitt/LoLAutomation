@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from src.rune_pilot.infrastructure.lcu_client import lcu_request
+from rune_pilot.infrastructure.lcu_client import lcu_request
 
 _PERK_STYLES_CACHE: list[dict[str, Any]] | None = None
 _PERKS_CACHE: list[dict[str, Any]] | None = None

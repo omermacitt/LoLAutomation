@@ -10,9 +10,12 @@ Usage (Riot Client must already be running and on the login screen):
 import sys
 import os
 
-sys.path.insert(0, os.path.dirname(__file__))
+# Allow running straight from a source checkout, with no `pip install -e .`
+_SRC_DIR = os.path.join(os.path.abspath(os.path.dirname(__file__)), "src")
+if os.path.isdir(_SRC_DIR) and _SRC_DIR not in sys.path:
+    sys.path.insert(0, _SRC_DIR)
 
-from src.rune_pilot.infrastructure.riot_client import (
+from rune_pilot.infrastructure.riot_client import (
     is_riot_client_running,
     _find_riot_client_lockfile,
     _parse_riot_client_lockfile,

@@ -6,15 +6,15 @@ import threading
 import time
 from typing import Any
 
-from src.rune_pilot.infrastructure.lcu_client import lcu_request
-from src.rune_pilot.domain.champion_service import normalize_champion_id, normalize_spell_id
-from src.rune_pilot.application.rune_service import (
+from rune_pilot.infrastructure.lcu_client import lcu_request
+from rune_pilot.domain.champion_service import normalize_champion_id, normalize_spell_id
+from rune_pilot.application.rune_service import (
     get_recommended_page_for_champion,
     build_rune_page_name,
 )
-from src.rune_pilot.application.champion_query import get_champion_name_by_id
-from src.rune_pilot.shared.utils import safe_int_list
-from src.rune_pilot.application.lobby_service import (
+from rune_pilot.application.champion_query import get_champion_name_by_id
+from rune_pilot.shared.utils import safe_int_list
+from rune_pilot.application.lobby_service import (
     do_ban,
     auto_pick_impl,
     extract_spell_pair,

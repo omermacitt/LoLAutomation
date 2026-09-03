@@ -3,7 +3,7 @@
 
 a = Analysis(
     ['run_app.py'],
-    pathex=[],
+    pathex=['src'],
     binaries=[],
     datas=[
         ('runes.json', '.'),

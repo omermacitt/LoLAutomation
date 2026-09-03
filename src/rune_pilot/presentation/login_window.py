@@ -9,9 +9,9 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtCore import Qt, pyqtSignal, QTimer
 
-from src.rune_pilot.application.account_service import AccountService
-from src.rune_pilot.domain.account_model import Account
-from src.rune_pilot.shared.resource import resource_path
+from rune_pilot.application.account_service import AccountService
+from rune_pilot.domain.account_model import Account
+from rune_pilot.shared.resource import resource_path
 
 class AddAccountDialog(QDialog):
     """Form dialog for adding or editing an account."""

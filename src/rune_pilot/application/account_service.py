@@ -5,9 +5,9 @@ import os
 import uuid
 from typing import List, Optional
 
-from src.rune_pilot.domain.account_model import Account
-from src.rune_pilot.infrastructure.crypto import encrypt_password, decrypt_password
-from src.rune_pilot.infrastructure.riot_client import auto_login_api, auto_login_ui, launch_riot_client
+from rune_pilot.domain.account_model import Account
+from rune_pilot.infrastructure.crypto import encrypt_password, decrypt_password
+from rune_pilot.infrastructure.riot_client import auto_login_api, auto_login_ui, launch_riot_client
 
 class AccountService:
     def __init__(self, config_file: str):
