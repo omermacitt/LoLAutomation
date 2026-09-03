@@ -1570,8 +1570,51 @@ class MainWindow(QMainWindow):
         self.update_all_rune_select_combos()
         self.update_all_skin_buttons()
 
+    @staticmethod
+    def _read_existing_config(config_path: str) -> dict:
+        """
+        Reads the config file that save_config() is about to rewrite.
+
+        `AccountService` stores saved accounts in the very same file, so writing it
+        from an empty dict would erase every account. Returning the current contents
+        lets save_config() overwrite only the keys the main window actually owns.
+        """
+        if not config_path:
+            return {}
+        try:
+            with open(config_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+        except FileNotFoundError:
+            return {}
+        except Exception as e:
+            print(f"Config read error (foreign keys will not be preserved): {e}")
+            return {}
+        return data if isinstance(data, dict) else {}
+
+    @staticmethod
+    def _resolve_config_save_path() -> str:
+        """Returns the path save_config() should write to, creating its directory."""
+        try:
+            config_dir = os.path.dirname(CONFIG_FILE)
+            if config_dir:
+                os.makedirs(config_dir, exist_ok=True)
+            return CONFIG_FILE
+        except Exception:
+            pass
+
+        try:
+            legacy_dir = os.path.dirname(LEGACY_APP_CONFIG_FILE)
+            if legacy_dir:
+                os.makedirs(legacy_dir, exist_ok=True)
+                return LEGACY_APP_CONFIG_FILE
+        except Exception:
+            pass
+
+        return LEGACY_CONFIG_FILE
+
     def save_config(self):
-        data = {}
+        config_path = self._resolve_config_save_path()
+        data = self._read_existing_config(config_path)
 
         # General
         data["queue_name"] = self.queue_combo.currentText()
@@ -1602,27 +1645,24 @@ class MainWindow(QMainWindow):
         data["rune_selection"] = self.rune_selection
         data["custom_skins"] = self.custom_skins
 
-        config_path = CONFIG_FILE
-        try:
-            config_dir = os.path.dirname(CONFIG_FILE)
-            if config_dir:
-                os.makedirs(config_dir, exist_ok=True)
-        except Exception:
-            try:
-                legacy_dir = os.path.dirname(LEGACY_APP_CONFIG_FILE)
-                if legacy_dir:
-                    os.makedirs(legacy_dir, exist_ok=True)
-                    config_path = LEGACY_APP_CONFIG_FILE
-                else:
-                    config_path = LEGACY_CONFIG_FILE
-            except Exception:
-                config_path = LEGACY_CONFIG_FILE
+        if not config_path:
+            print("Config save error: no writable config path")
+            self._schedule_live_config_push()
+            return
 
+        # Write to a sibling temp file first so a crash mid-write cannot truncate
+        # a config that already holds the user's accounts.
+        tmp_path = f"{config_path}.tmp"
         try:
-            with open(config_path, "w", encoding="utf-8") as f:
+            with open(tmp_path, "w", encoding="utf-8") as f:
                 json.dump(data, f, indent=2, ensure_ascii=False)
+            os.replace(tmp_path, config_path)
         except Exception as e:
             print(f"Config save error: {e}")
+            try:
+                os.remove(tmp_path)
+            except OSError:
+                pass
         self._schedule_live_config_push()
 
     def _schedule_update_check(self) -> None:
