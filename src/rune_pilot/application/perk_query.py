@@ -1,8 +1,4 @@
-"""
-RunePilot perk (rün) sorgu servisi.
-
-LCU üzerinden rün style/perk verisi ve ikon sorgulama.
-"""
+"""RunePilot perk query service — LCU rune style/perk data and icon lookups."""
 
 from __future__ import annotations
 
@@ -15,7 +11,7 @@ _PERKS_CACHE: list[dict[str, Any]] | None = None
 
 
 def get_perk_styles() -> list[dict[str, Any]]:
-    """LCU üzerinden rune style listesini okur (process başına cache'li)."""
+    """Reads the rune style list from the LCU (cached per process)."""
     global _PERK_STYLES_CACHE
     if _PERK_STYLES_CACHE is not None:
         return _PERK_STYLES_CACHE
@@ -29,7 +25,7 @@ def get_perk_styles() -> list[dict[str, Any]]:
 
 
 def get_perks() -> list[dict[str, Any]]:
-    """LCU üzerinden perk listesini okur (farklı endpoint'lere fallback, cache'li)."""
+    """Reads the perk list from the LCU, with fallback endpoints (cached)."""
     global _PERKS_CACHE
     if _PERKS_CACHE is not None:
         return _PERKS_CACHE
@@ -57,7 +53,7 @@ def get_perks() -> list[dict[str, Any]]:
 
 
 def get_perk_icon_bytes(asset_path: str) -> bytes | None:
-    """Verilen LCU asset yolu için ikon baytlarını döndürür."""
+    """Returns the icon bytes for a given LCU asset path."""
     try:
         res = lcu_request("GET", asset_path)
         if res.status_code != 200:

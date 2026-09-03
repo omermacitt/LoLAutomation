@@ -1,9 +1,4 @@
-"""
-RunePilot çoklu özel rün preset yönetimi (PyQt6).
-
-Tek bir pencerede Özel 1/2/3 presetleri arasında sayfalama ile gezip
-kaydetme/silme imkanı verir.
-"""
+"""RunePilot multi-preset custom rune manager (PyQt6) — paginate, save, and delete presets 1/2/3."""
 
 from __future__ import annotations
 
@@ -47,12 +42,12 @@ class RunePresetsDialog(QDialog):
             if str(k) in ("1", "2", "3") and isinstance(v, dict):
                 self._saved_slots.add(int(k))
 
-        self.setWindowTitle(f"Özel Rünler - {self._champion_name}")
+        self.setWindowTitle(f"Custom Runes - {self._champion_name}")
         self.setMinimumWidth(700)
 
         root = QVBoxLayout(self)
 
-        title = QLabel(f"Şampiyon: {self._champion_name}")
+        title = QLabel(f"Champion: {self._champion_name}")
         title.setAlignment(Qt.AlignmentFlag.AlignLeft)
         root.addWidget(title)
 
@@ -89,15 +84,15 @@ class RunePresetsDialog(QDialog):
         actions = QHBoxLayout()
         actions.addStretch(1)
 
-        self.delete_btn = QPushButton("Sil")
+        self.delete_btn = QPushButton("Delete")
         self.delete_btn.clicked.connect(self._delete_current)
         actions.addWidget(self.delete_btn)
 
-        self.save_btn = QPushButton("Kaydet")
+        self.save_btn = QPushButton("Save")
         self.save_btn.clicked.connect(self._save_current)
         actions.addWidget(self.save_btn)
 
-        close_btn = QPushButton("Kapat")
+        close_btn = QPushButton("Close")
         close_btn.clicked.connect(self.close)
         actions.addWidget(close_btn)
 
@@ -123,7 +118,7 @@ class RunePresetsDialog(QDialog):
     def _refresh_header(self) -> None:
         slot = self._current_slot()
         saved = slot in self._saved_slots
-        self.slot_label.setText(f"Özel {slot} / 3" + (" (Kayıtlı)" if saved else " (Boş)"))
+        self.slot_label.setText(f"Custom {slot} / 3" + (" (Saved)" if saved else " (Empty)"))
         self.prev_btn.setEnabled(slot > 1)
         self.next_btn.setEnabled(slot < 3)
         self.delete_btn.setEnabled(saved)

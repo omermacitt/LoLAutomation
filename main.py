@@ -1,4 +1,4 @@
-"""Geliştirme amaçlı: FastAPI servisini tek başına çalıştırır (GUI olmadan)."""
+"""Development entry point: runs the FastAPI service standalone (no GUI)."""
 
 import uvicorn
 

@@ -1,8 +1,4 @@
-"""
-RunePilot rün verisi sağlayıcısı.
-
-`runes.json` dosyasını okur ve rün verisine erişim sağlar.
-"""
+"""RunePilot rune data provider — reads runes.json and exposes rune data."""
 
 from __future__ import annotations
 
@@ -18,7 +14,7 @@ _RUNES_DATA: dict[str, Any] | None = None
 
 
 def load_runes() -> dict[str, Any]:
-    """`runes.json` içeriğini okur; hata durumunda boş dict döndürür."""
+    """Reads `runes.json`; returns an empty dict on error."""
     if not os.path.exists(RUNES_FILE):
         return {}
     try:
@@ -29,7 +25,7 @@ def load_runes() -> dict[str, Any]:
 
 
 def get_runes_data() -> dict[str, Any]:
-    """Rün verisini döndürür (ilk çağrıda yüklenir)."""
+    """Returns the rune data, loading it on first call."""
     global _RUNES_DATA
     if _RUNES_DATA is None:
         _RUNES_DATA = load_runes()

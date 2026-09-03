@@ -1,7 +1,6 @@
 """
-RunePilot rün servisi.
+RunePilot rune service — page name generation and recommended rune lookup.
 
-Rün sayfası önerisi, isim oluşturma ve rün verisi işleme.
 Moved from domain/ because it depends on infrastructure (rune_data_provider).
 """
 
@@ -17,7 +16,7 @@ from src.rune_pilot.shared.utils import safe_int_list
 
 
 def build_rune_page_name(*, prefix: str, champion_name: str) -> str:
-    """LoL client rune sayfası isim limitine göre güvenli bir isim üretir."""
+    """Generates a safe rune page name within the LoL client character limit."""
     prefix = (prefix or "").strip() or "Auto"
     champ = (champion_name or "").strip() or "Champion"
 

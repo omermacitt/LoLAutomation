@@ -1,8 +1,4 @@
-"""
-RunePilot otomatik güncelleme desteği.
-
-GitHub Releases üzerinden yeni sürüm kontrolü ve indirme işlemleri.
-"""
+"""RunePilot auto-update support — checks GitHub Releases and downloads updates."""
 
 from __future__ import annotations
 
@@ -15,7 +11,7 @@ import requests
 
 @dataclass
 class UpdateInfo:
-    """Mevcut bir güncelleme hakkındaki bilgileri taşır."""
+    """Holds information about an available update."""
 
     current_version: str = ""
     latest_version: str = ""
@@ -33,9 +29,9 @@ def check_for_update(
     timeout_sec: float = 5.0,
 ) -> Optional[UpdateInfo]:
     """
-    GitHub Releases API üzerinden yeni sürüm olup olmadığını kontrol eder.
+    Checks GitHub Releases API for a newer version.
 
-    Yeni sürüm varsa `UpdateInfo` döndürür; yoksa `None`.
+    Returns an `UpdateInfo` if a newer version exists; otherwise `None`.
     """
     if not repo:
         return None
@@ -58,12 +54,12 @@ def check_for_update(
         if not tag:
             return None
 
-        # Basit sürüm karşılaştırması
+        # Simple version comparison
         cur = current_version.lstrip("vV").strip()
         if tag == cur:
             return None
 
-        # Asset bilgisi
+        # Find the installer asset
         asset_url = ""
         asset_name = ""
         assets = data.get("assets") or []
@@ -96,12 +92,12 @@ def download_asset(
     timeout_sec: float = 300.0,
 ) -> tuple[bool, str]:
     """
-    Verilen URL'den dosyayı indirir.
+    Downloads a file from the given URL.
 
-    Dönüş: (başarılı_mı, hata_mesajı)
+    Returns: (success, error_message)
     """
     if not url:
-        return False, "URL boş"
+        return False, "URL is empty"
 
     headers: dict[str, str] = {}
     if token:

@@ -1,8 +1,4 @@
-"""
-RunePilot kostüm sorgu servisi.
-
-LCU üzerinden kostüm verisini sorgulayan uygulama katmanı yardımcıları.
-"""
+"""RunePilot skin query service — LCU skin data lookups."""
 
 from __future__ import annotations
 
@@ -11,9 +7,9 @@ from src.rune_pilot.infrastructure.lcu_client import lcu_request
 
 def get_skin_options_for_champion(champ_id: int) -> tuple[dict[int, str], set[int]]:
     """
-    Şampiyona ait kostüm isimlerini ve sahip olunan kostüm ID'lerini döndürür.
+    Returns skin names and owned skin IDs for a champion.
 
-    Dönüş: (skin_name_by_id, owned_skin_ids)
+    Returns: (skin_name_by_id, owned_skin_ids)
     """
     champ_id_int = int(champ_id)
     base_skin_id = champ_id_int * 1000

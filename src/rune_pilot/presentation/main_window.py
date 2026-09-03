@@ -1,9 +1,4 @@
-"""
-RunePilot masaüstü uygulaması (PyQt6).
-
-Kullanıcıdan rol/ban/şampiyon tercihlerini alır, `api.py` üzerindeki FastAPI
-servisine gönderir ve otomasyonu kontrol eder.
-"""
+"""RunePilot desktop application (PyQt6) — collects role/ban/champion preferences and controls the automation via FastAPI."""
 import sys
 import os
 import json
@@ -61,7 +56,7 @@ from src.rune_pilot.application.account_service import AccountService
 from src.rune_pilot.domain.constants import QUEUE_MODES, ROLES, SUMMONER_SPELLS, SPELL_NAME_BY_ID
 from src.rune_pilot.presentation.styles import STYLESHEET
 
-API_BASE = "http://127.0.0.1:8000"  # FastAPI sunucunun adresi
+API_BASE = "http://127.0.0.1:8000"
 API_TIMEOUT_SEC = 3
 
 
@@ -74,11 +69,11 @@ class _HealthEmitter(QObject):
 
 
 class MainWindow(QMainWindow):
-    """RunePilot ana pencere UI'si."""
+    """RunePilot main window."""
     def __init__(self):
         super().__init__()
 
-        self.setWindowTitle(f"{APP_DISPLAY_NAME} – Rol Bazlı Seçim")
+        self.setWindowTitle(f"{APP_DISPLAY_NAME} – Role-Based Selection")
         try:
             self.setWindowIcon(QIcon(resource_path("assets/app_icon.png")))
         except Exception:
@@ -92,17 +87,16 @@ class MainWindow(QMainWindow):
         main_layout.setSpacing(15)
         main_layout.setContentsMargins(20, 20, 20, 20)
 
-        # Sağ üst durum/progress göstergesi
         top_row = QHBoxLayout()
         top_row.setContentsMargins(0, 0, 0, 0)
         top_row.setSpacing(8)
         top_row.addStretch(1)
 
-        self.corner_status_label = QLabel("Kontrol…")
+        self.corner_status_label = QLabel("Checking…")
         self.corner_status_label.setObjectName("cornerStatusLabel")
         self.corner_status_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.corner_status_label.setProperty("state", "checking")
-        self.corner_status_label.setToolTip("Otomasyon durumu")
+        self.corner_status_label.setToolTip("Automation status")
 
         self.corner_progress = QProgressBar()
         self.corner_progress.setObjectName("cornerProgress")
@@ -124,36 +118,30 @@ class MainWindow(QMainWindow):
         title = QLabel(APP_DISPLAY_NAME)
         title.setObjectName("appTitle")
         title.setAlignment(Qt.AlignmentFlag.AlignHCenter)
-        subtitle = QLabel("Rol bazlı ban / şampiyon seçimi & rün otomasyonu")
+        subtitle = QLabel("Role-based ban / champion pick & rune automation")
         subtitle.setObjectName("appSubtitle")
         subtitle.setAlignment(Qt.AlignmentFlag.AlignHCenter)
         main_layout.addWidget(title)
         main_layout.addWidget(subtitle)
 
-        # ---------------------------------------------------------------------
-        # 1. Genel Ayarlar (Queue, Roller)
-        # ---------------------------------------------------------------------
-        settings_group = QGroupBox("Genel Ayarlar")
+        settings_group = QGroupBox("General Settings")
         settings_layout = QGridLayout(settings_group)
 
-        # Queue
-        settings_layout.addWidget(QLabel("Oyun Modu:"), 0, 0)
+        settings_layout.addWidget(QLabel("Game Mode:"), 0, 0)
         self.queue_combo = QComboBox()
         for name in QUEUE_MODES.keys():
             self.queue_combo.addItem(name)
         self.queue_combo.setCurrentText("Ranked Solo/Duo")
         settings_layout.addWidget(self.queue_combo, 0, 1)
 
-        # Roller
-        settings_layout.addWidget(QLabel("1. Tercih:"), 1, 0)
+        settings_layout.addWidget(QLabel("1st Preference:"), 1, 0)
         self.primary_role_combo = QComboBox()
         settings_layout.addWidget(self.primary_role_combo, 1, 1)
 
-        settings_layout.addWidget(QLabel("2. Tercih:"), 1, 2)
+        settings_layout.addWidget(QLabel("2nd Preference:"), 1, 2)
         self.secondary_role_combo = QComboBox()
         settings_layout.addWidget(self.secondary_role_combo, 1, 3)
 
-        # Doldur
         for name in ROLES.keys():
             self.primary_role_combo.addItem(name)
             self.secondary_role_combo.addItem(name)
@@ -167,22 +155,17 @@ class MainWindow(QMainWindow):
 
         main_layout.addWidget(settings_group)
 
-        # ---------------------------------------------------------------------
-        # 2. Rol Bazlı Şampiyon Seçimi (Tabs)
-        # ---------------------------------------------------------------------
         self.tabs = QTabWidget()
         main_layout.addWidget(self.tabs)
 
-        # Her rol için 3 combo box tutacağız
-        # self.role_widgets[role_key] = [combo1, combo2, combo3]
         self.role_combos = {}
         self.role_ban_combos = {}
         self.role_rune_buttons = {}
         self.role_rune_select_combos = {}
         self.role_skin_buttons = {}
-        # role -> [ (spell1_combo, spell2_combo), ... ] (champion rows)
+        # role -> [(spell1_combo, spell2_combo), ...] per champion row
         self.role_champion_spell_combos = {}
-        # champId(str) -> slot(str: "1"|"2"|"3") -> rune page dict
+        # champId(str) -> slot("1"|"2"|"3") -> rune page dict
         self.custom_runes = {}
         # champId(str) -> 0(recommended) | 1 | 2 | 3
         self.rune_selection = {}
@@ -192,8 +175,6 @@ class MainWindow(QMainWindow):
         self.custom_summoner_spells = {}
         self._updating_champion_spells = False
 
-        # ROLES mapping order for tabs
-        # "Top", "Jungle", "Mid", "ADC", "Support"
         role_tab_order = [
             ("Top", "TOP"),
             ("Jungle", "JUNGLE"),
@@ -211,16 +192,16 @@ class MainWindow(QMainWindow):
             combo2 = QComboBox()
             combo3 = QComboBox()
 
-            make_combo_searchable(ban_combo, placeholder="Ban ara...")
+            make_combo_searchable(ban_combo, placeholder="Search ban...")
             make_combo_searchable(combo1)
             make_combo_searchable(combo2)
             make_combo_searchable(combo3)
 
-            layout.addRow("Ban Şampiyonu:", ban_combo)
+            layout.addRow("Ban Champion:", ban_combo)
 
-            layout.addRow("1. Şampiyon (En öncelikli):", self._make_champion_row(role_key, 0, combo1))
-            layout.addRow("2. Şampiyon:", self._make_champion_row(role_key, 1, combo2))
-            layout.addRow("3. Şampiyon:", self._make_champion_row(role_key, 2, combo3))
+            layout.addRow("1st Champion (Highest priority):", self._make_champion_row(role_key, 0, combo1))
+            layout.addRow("2nd Champion:", self._make_champion_row(role_key, 1, combo2))
+            layout.addRow("3rd Champion:", self._make_champion_row(role_key, 2, combo3))
 
             self.tabs.addTab(page, display_name)
             self.role_combos[role_key] = [combo1, combo2, combo3]
@@ -234,28 +215,28 @@ class MainWindow(QMainWindow):
         self._icon_running = self.style().standardIcon(QStyle.StandardPixmap.SP_DialogApplyButton)
         self._icon_wait = self.style().standardIcon(QStyle.StandardPixmap.SP_BrowserReload)
 
-        self.start_button = QPushButton("Başlat")
+        self.start_button = QPushButton("Start")
         self.start_button.setObjectName("startButton")
         self.start_button.setIcon(self._icon_play)
         self.start_button.setIconSize(QSize(18, 18))
-        self.start_button.setToolTip("Otomasyonu başlatır")
+        self.start_button.setToolTip("Start automation")
         self.start_button.clicked.connect(self.start_automation)
         self.start_button.setFixedHeight(40)
         self.start_button.setProperty("automationState", "stopped")
         button_layout.addWidget(self.start_button)
 
-        self.stop_button = QPushButton("Durdur")
+        self.stop_button = QPushButton("Stop")
         self.stop_button.setObjectName("stopButton")
         self.stop_button.setIcon(self._icon_stop)
         self.stop_button.setIconSize(QSize(18, 18))
-        self.stop_button.setToolTip("Otomasyonu durdurur")
+        self.stop_button.setToolTip("Stop automation")
         self.stop_button.clicked.connect(self.stop_automation)
         self.stop_button.setFixedHeight(40)
-        self.stop_button.setEnabled(False) # Başlangıçta pasif
+        self.stop_button.setEnabled(False)
         self.stop_button.setProperty("automationState", "stopped")
         button_layout.addWidget(self.stop_button)
 
-        self.automation_status = QLabel("Durum: Kontrol ediliyor…")
+        self.automation_status = QLabel("Status: Checking…")
         self.automation_status.setObjectName("automationStatus")
         self.automation_status.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.automation_status.setFixedHeight(32)
@@ -265,25 +246,17 @@ class MainWindow(QMainWindow):
 
         main_layout.addLayout(button_layout)
 
-        # Şampiyon listesini yenile butonu (üstte, genel ayarlar yanında)
-        self.refresh_button = QPushButton("Şampiyonları Yenile")
+        self.refresh_button = QPushButton("Refresh Champions")
         self.refresh_button.setObjectName("refreshButton")
         self.refresh_button.clicked.connect(self.refresh_champions)
         self.refresh_button.setFixedHeight(32)
         settings_layout.addWidget(self.refresh_button, 0, 2, 1, 2)
 
-        # Veri yükle
         self.load_champions()
-
-        # Kayıtlı ayarları yükle (şampiyonlar yüklendikten sonra yapılmalı)
         self.load_config()
 
-        # Bildirim & System Tray
         self.toaster = ToastNotifier()
-        
-        # ---------------------------------------------------------------------
-        # QSystemTrayIcon (Sistem Tepsisi Entegrasyonu)
-        # ---------------------------------------------------------------------
+
         self.tray_icon = QSystemTrayIcon(self)
         app_icon_path = resource_path("assets/app_icon.png")
         if os.path.exists(app_icon_path):
@@ -294,11 +267,11 @@ class MainWindow(QMainWindow):
             
         tray_menu = QMenu(self)
         
-        show_action = QAction("Göster", self)
+        show_action = QAction("Show", self)
         show_action.triggered.connect(self.showNormal)
         tray_menu.addAction(show_action)
-        
-        quit_action = QAction("Çıkış", self)
+
+        quit_action = QAction("Quit", self)
         quit_action.triggered.connect(QApplication.instance().quit)
         tray_menu.addAction(quit_action)
         
@@ -324,7 +297,6 @@ class MainWindow(QMainWindow):
         self._live_config_push_timer.setSingleShot(True)
         self._live_config_push_timer.timeout.connect(self._push_live_config_to_api)
 
-        # Otomatik güncelleme kontrolü (GitHub Releases)
         self._update_emitter = _UpdateEmitter()
         self._update_emitter.update_available.connect(self._on_update_available)
         self._update_emitter.download_finished.connect(self._on_update_download_finished)
@@ -345,103 +317,98 @@ class MainWindow(QMainWindow):
             return
 
         if state == "running":
-            text = "Çalışıyor"
+            text = "Running"
             self.corner_progress.setRange(0, 1)
             self.corner_progress.setValue(1)
         elif state == "stopped":
-            text = "Durduruldu"
+            text = "Stopped"
             self.corner_progress.setRange(0, 1)
             self.corner_progress.setValue(0)
         elif state == "offline":
-            text = "Sunucu yok"
+            text = "Offline"
             self.corner_progress.setRange(0, 1)
             self.corner_progress.setValue(0)
         elif state == "starting":
-            text = "Başlıyor…"
+            text = "Starting…"
             self.corner_progress.setRange(0, 0)
         elif state == "stopping":
-            text = "Duruyor…"
+            text = "Stopping…"
             self.corner_progress.setRange(0, 0)
         else:
             state = "checking"
-            text = "Kontrol…"
+            text = "Checking…"
             self.corner_progress.setRange(0, 0)
 
         self.corner_status_label.setText(text)
         self.corner_status_label.setProperty("state", state)
         self.corner_progress.setProperty("state", state)
-        self.corner_status_label.setToolTip(f"Durum: {text}")
+        self.corner_status_label.setToolTip(f"Status: {text}")
 
         self._repolish(self.corner_status_label)
         self._repolish(self.corner_progress)
 
     def _set_automation_ui_state(self, state: str, *, detail: str | None = None) -> None:
-        """
-        UI state'ini tek noktadan günceller.
-
-        state: checking | offline | stopped | running | starting | stopping
-        """
+        """Updates the entire UI state from a single call. state: checking|offline|stopped|running|starting|stopping"""
         if state == "running":
-            self.start_button.setText("Çalışıyor")
+            self.start_button.setText("Running")
             self.start_button.setIcon(self._icon_running)
             self.start_button.setEnabled(False)
 
-            self.stop_button.setText("Durdur")
+            self.stop_button.setText("Stop")
             self.stop_button.setIcon(self._icon_stop)
             self.stop_button.setEnabled(True)
 
-            badge_text = detail or "Durum: Çalışıyor"
+            badge_text = detail or "Status: Running"
         elif state == "stopped":
-            self.start_button.setText("Başlat")
+            self.start_button.setText("Start")
             self.start_button.setIcon(self._icon_play)
             self.start_button.setEnabled(True)
 
-            self.stop_button.setText("Durdur")
+            self.stop_button.setText("Stop")
             self.stop_button.setIcon(self._icon_stop)
             self.stop_button.setEnabled(False)
 
-            badge_text = detail or "Durum: Durduruldu"
+            badge_text = detail or "Status: Stopped"
         elif state == "offline":
-            self.start_button.setText("Başlat")
+            self.start_button.setText("Start")
             self.start_button.setIcon(self._icon_play)
             self.start_button.setEnabled(True)
 
-            self.stop_button.setText("Durdur")
+            self.stop_button.setText("Stop")
             self.stop_button.setIcon(self._icon_stop)
             self.stop_button.setEnabled(False)
 
-            badge_text = detail or "Durum: Sunucu kapalı"
+            badge_text = detail or "Status: Server offline"
         elif state == "starting":
-            self.start_button.setText("Başlatılıyor…")
+            self.start_button.setText("Starting…")
             self.start_button.setIcon(self._icon_wait)
             self.start_button.setEnabled(False)
 
-            self.stop_button.setText("Durdur")
+            self.stop_button.setText("Stop")
             self.stop_button.setIcon(self._icon_stop)
             self.stop_button.setEnabled(False)
 
-            badge_text = detail or "Durum: Başlatılıyor…"
+            badge_text = detail or "Status: Starting…"
         elif state == "stopping":
-            self.start_button.setText("Çalışıyor")
+            self.start_button.setText("Running")
             self.start_button.setIcon(self._icon_running)
             self.start_button.setEnabled(False)
 
-            self.stop_button.setText("Durduruluyor…")
+            self.stop_button.setText("Stopping…")
             self.stop_button.setIcon(self._icon_wait)
             self.stop_button.setEnabled(False)
 
-            badge_text = detail or "Durum: Durduruluyor…"
+            badge_text = detail or "Status: Stopping…"
         else:
-            # checking / unknown fallback
-            self.start_button.setText("Başlat")
+            self.start_button.setText("Start")
             self.start_button.setIcon(self._icon_play)
             self.start_button.setEnabled(True)
 
-            self.stop_button.setText("Durdur")
+            self.stop_button.setText("Stop")
             self.stop_button.setIcon(self._icon_stop)
             self.stop_button.setEnabled(False)
 
-            badge_text = detail or "Durum: Kontrol ediliyor…"
+            badge_text = detail or "Status: Checking…"
             state = "checking"
 
         self.start_button.setProperty("automationState", state)
@@ -490,7 +457,7 @@ class MainWindow(QMainWindow):
             self._set_automation_ui_state("offline")
             return
 
-        self.automation_status.setToolTip("Sunucu çalışıyor")
+        self.automation_status.setToolTip("Server running")
         self._set_automation_ui_state("running" if running else "stopped")
 
     def _set_combo_item_enabled(self, combo: QComboBox, index: int, enabled: bool) -> None:
@@ -517,12 +484,12 @@ class MainWindow(QMainWindow):
         primary_name = self.primary_role_combo.currentText()
         secondary_name = self.secondary_role_combo.currentText()
 
-        if primary_name != "Yok":
+        if primary_name != "None":
             idx = self.secondary_role_combo.findText(primary_name)
             if idx >= 0:
                 self._set_combo_item_enabled(self.secondary_role_combo, idx, False)
 
-        if secondary_name != "Yok":
+        if secondary_name != "None":
             idx = self.primary_role_combo.findText(secondary_name)
             if idx >= 0:
                 self._set_combo_item_enabled(self.primary_role_combo, idx, False)
@@ -536,11 +503,11 @@ class MainWindow(QMainWindow):
             primary_name = self.primary_role_combo.currentText()
             secondary_name = self.secondary_role_combo.currentText()
 
-            if primary_name != "Yok" and secondary_name != "Yok" and primary_name == secondary_name:
+            if primary_name != "None" and secondary_name != "None" and primary_name == secondary_name:
                 if changed == "primary":
-                    self.secondary_role_combo.setCurrentText("Yok")
+                    self.secondary_role_combo.setCurrentText("None")
                 else:
-                    self.primary_role_combo.setCurrentText("Yok")
+                    self.primary_role_combo.setCurrentText("None")
 
             self._refresh_role_preference_exclusion()
         finally:
@@ -555,12 +522,12 @@ class MainWindow(QMainWindow):
         spell1_name = spell1_combo.currentText()
         spell2_name = spell2_combo.currentText()
 
-        if spell1_name != "Yok":
+        if spell1_name != "None":
             idx = spell2_combo.findText(spell1_name)
             if idx >= 0:
                 self._set_combo_item_enabled(spell2_combo, idx, False)
 
-        if spell2_name != "Yok":
+        if spell2_name != "None":
             idx = spell1_combo.findText(spell2_name)
             if idx >= 0:
                 self._set_combo_item_enabled(spell1_combo, idx, False)
@@ -579,13 +546,13 @@ class MainWindow(QMainWindow):
 
     def _spell_name_from_id(self, spell_id: int | None) -> str:
         if spell_id is None:
-            return "Yok"
-        return SPELL_NAME_BY_ID.get(int(spell_id), "Yok")
+            return "None"
+        return SPELL_NAME_BY_ID.get(int(spell_id), "None")
 
     def _default_spell_names_for_role(self, role_key: str) -> tuple[str, str]:
         if role_key == "JUNGLE":
-            return "Sıçra (Flash)", "Çarp (Smite)"
-        return "Sıçra (Flash)", "Tutuştur (Ignite)"
+            return "Flash", "Smite"
+        return "Flash", "Ignite"
 
     def _normalize_spell_id_from_any(self, value) -> int | None:
         if value is None:
@@ -662,11 +629,11 @@ class MainWindow(QMainWindow):
             spell2_combo.setCurrentText(self._spell_name_from_id(s2_id))
 
             if (
-                spell1_combo.currentText() != "Yok"
-                and spell2_combo.currentText() != "Yok"
+                spell1_combo.currentText() != "None"
+                and spell2_combo.currentText() != "None"
                 and spell1_combo.currentText() == spell2_combo.currentText()
             ):
-                spell2_combo.setCurrentText("Yok")
+                spell2_combo.setCurrentText("None")
                 self.custom_summoner_spells.setdefault(role_key, {})[cid]["spell2Id"] = None
 
             self._refresh_spell_exclusion(spell1_combo, spell2_combo)
@@ -693,11 +660,11 @@ class MainWindow(QMainWindow):
         try:
             spell1_name = spell1_combo.currentText()
             spell2_name = spell2_combo.currentText()
-            if spell1_name != "Yok" and spell2_name != "Yok" and spell1_name == spell2_name:
+            if spell1_name != "None" and spell2_name != "None" and spell1_name == spell2_name:
                 if changed == "spell1":
-                    spell2_combo.setCurrentText("Yok")
+                    spell2_combo.setCurrentText("None")
                 else:
-                    spell1_combo.setCurrentText("Yok")
+                    spell1_combo.setCurrentText("None")
 
             self._refresh_spell_exclusion(spell1_combo, spell2_combo)
         finally:
@@ -752,13 +719,13 @@ class MainWindow(QMainWindow):
             spell1_combo.addItem(name)
             spell2_combo.addItem(name)
 
-        spell1_combo.setToolTip("1. Büyü")
-        spell2_combo.setToolTip("2. Büyü")
-        spell1_combo.setCurrentText("Sıçra (Flash)")
+        spell1_combo.setToolTip("Spell 1")
+        spell2_combo.setToolTip("Spell 2")
+        spell1_combo.setCurrentText("Flash")
         if role_key == "JUNGLE":
-            spell2_combo.setCurrentText("Çarp (Smite)")
+            spell2_combo.setCurrentText("Smite")
         else:
-            spell2_combo.setCurrentText("Tutuştur (Ignite)")
+            spell2_combo.setCurrentText("Ignite")
 
         spell1_combo.setFixedWidth(155)
         spell2_combo.setFixedWidth(155)
@@ -781,7 +748,7 @@ class MainWindow(QMainWindow):
 
         rune_select = QComboBox()
         rune_select.setFixedWidth(140)
-        rune_select.setToolTip("Bu şampiyon için kullanılacak rün sayfası")
+        rune_select.setToolTip("Rune page to use for this champion")
         rune_select.currentIndexChanged.connect(
             lambda _=0, rk=role_key, i=index: self.on_rune_selection_changed(rk, i)
         )
@@ -790,7 +757,7 @@ class MainWindow(QMainWindow):
         self.role_rune_select_combos.setdefault(role_key, [None, None, None])
         self.role_rune_select_combos[role_key][index] = rune_select
 
-        button = QPushButton("Rünler")
+        button = QPushButton("Runes")
         button.setObjectName("runeButton")
         button.setFixedWidth(95)
         button.clicked.connect(lambda _=False, rk=role_key, i=index: self.open_rune_presets_dialog(rk, i))
@@ -799,7 +766,7 @@ class MainWindow(QMainWindow):
         self.role_rune_buttons.setdefault(role_key, [None, None, None])
         self.role_rune_buttons[role_key][index] = button
 
-        skin_button = QPushButton("Kostüm")
+        skin_button = QPushButton("Skin")
         skin_button.setObjectName("skinButton")
         skin_button.setFixedWidth(95)
         skin_button.clicked.connect(lambda _=False, rk=role_key, i=index: self.edit_custom_skin(rk, i))
@@ -827,7 +794,7 @@ class MainWindow(QMainWindow):
 
         if not champ_id:
             button.setEnabled(False)
-            button.setText("Rünler")
+            button.setText("Runes")
             button.setToolTip("")
             self._set_button_configured(button, False)
             return
@@ -837,9 +804,9 @@ class MainWindow(QMainWindow):
         presets = presets if isinstance(presets, dict) else {}
         preset_count = sum(1 for k, v in presets.items() if str(k) in ("1", "2", "3") and isinstance(v, dict))
         self._set_button_configured(button, preset_count > 0)
-        button.setText(f"Rünler ({preset_count})" if preset_count else "Rünler")
+        button.setText(f"Runes ({preset_count})" if preset_count else "Runes")
         button.setToolTip(
-            f"{preset_count} adet özel rün preset'i kaydedildi" if preset_count else "Önerilen rün kullanılacak"
+            f"{preset_count} custom rune preset(s) saved" if preset_count else "Recommended rune will be used"
         )
 
     def update_all_rune_buttons(self) -> None:
@@ -861,7 +828,7 @@ class MainWindow(QMainWindow):
         select_combo.blockSignals(True)
         try:
             select_combo.clear()
-            select_combo.addItem("Önerilen", 0)
+            select_combo.addItem("Recommended", 0)
 
             if not champ_id:
                 select_combo.setEnabled(False)
@@ -877,7 +844,7 @@ class MainWindow(QMainWindow):
                     raw_name = page.get("name")
                     name = str(raw_name).strip() if raw_name is not None else ""
                     name = " ".join(name.split())
-                    label = f"Özel {slot}: {name}" if name else f"Özel {slot}"
+                    label = f"Custom {slot}: {name}" if name else f"Custom {slot}"
                     select_combo.addItem(label, slot)
 
             raw_selection = self.rune_selection.get(champ_key, 0) if isinstance(self.rune_selection, dict) else 0
@@ -896,7 +863,7 @@ class MainWindow(QMainWindow):
             else:
                 select_combo.setCurrentIndex(0)
 
-            # Disable if there is no alternative to "Önerilen".
+            # Disable if there is no alternative to "Recommended".
             select_combo.setEnabled(select_combo.count() > 1)
         finally:
             select_combo.blockSignals(False)
@@ -978,13 +945,13 @@ class MainWindow(QMainWindow):
         champ_combo = combos[index]
         champ_id = champ_combo.currentData()
         if not champ_id:
-            QMessageBox.warning(self, "Eksik Seçim", "Önce şampiyon seçmelisiniz.")
+            QMessageBox.warning(self, "No Selection", "Please select a champion first.")
             return
 
         try:
             champ_id_int = int(champ_id)
         except (TypeError, ValueError):
-            QMessageBox.warning(self, "Geçersiz", "Geçersiz şampiyon ID.")
+            QMessageBox.warning(self, "Invalid", "Invalid champion ID.")
             return
 
         champ_name = champ_combo.currentText()
@@ -1028,8 +995,8 @@ class MainWindow(QMainWindow):
         champ_id = combos[index].currentData()
 
         if not champ_id:
-            button.setText("Kostüm")
-            button.setToolTip("Önce şampiyon seçin")
+            button.setText("Skin")
+            button.setToolTip("Select a champion first")
             button.setEnabled(False)
             self._set_button_configured(button, False)
             return
@@ -1040,8 +1007,8 @@ class MainWindow(QMainWindow):
         role_skins = role_skins if isinstance(role_skins, dict) else {}
         has_custom = cid in role_skins
         self._set_button_configured(button, bool(has_custom))
-        button.setText("Kostüm (Özel)" if has_custom else "Kostüm")
-        button.setToolTip("Özel kostüm seçildi" if has_custom else "Varsayılan kostüm kullanılacak")
+        button.setText("Skin (Custom)" if has_custom else "Skin")
+        button.setToolTip("Custom skin selected" if has_custom else "Default skin will be used")
 
     def update_all_skin_buttons(self) -> None:
         for role_key, buttons in (self.role_skin_buttons or {}).items():
@@ -1049,10 +1016,7 @@ class MainWindow(QMainWindow):
                 self.update_skin_button(role_key, i)
 
     def _set_button_configured(self, button: QPushButton, configured: bool) -> None:
-        """
-        Qt stylesheet'in dinamik property tabanlı stillerini güncellemek için
-        butona `configured=true/false` yazar ve stilin yeniden uygulanmasını sağlar.
-        """
+        """Sets a `configured` property on the button and re-polishes it for dynamic QSS styling."""
         try:
             current = button.property("configured")
             if isinstance(current, bool) and current == bool(configured):
@@ -1126,12 +1090,7 @@ class MainWindow(QMainWindow):
         self.open_rune_presets_dialog(role_key, index)
 
     def _load_skin_options_for_champion(self, champ_id: int) -> list[tuple[int, str]]:
-        """
-        Seçili şampiyon için kostüm seçeneklerini döndürür.
-
-        - Varsayılan (base) her zaman eklenir.
-        - Ek olarak sadece sahip olunan kostümler listelenir.
-        """
+        """Returns skin options for the selected champion. The base (default) skin is always included, followed by owned skins."""
         champ_id_int = int(champ_id)
         base_skin_id = champ_id_int * 1000
 
@@ -1139,11 +1098,11 @@ class MainWindow(QMainWindow):
 
         options: list[tuple[int, str]] = []
 
-        base_name = skin_name_by_id.get(base_skin_id) or "Varsayılan"
-        options.append((base_skin_id, f"Varsayılan ({base_name})"))
+        base_name = skin_name_by_id.get(base_skin_id) or "Default"
+        options.append((base_skin_id, f"Default ({base_name})"))
 
         for sid in sorted(owned_skin_ids):
-            options.append((sid, skin_name_by_id.get(sid) or f"Kostüm {sid}"))
+            options.append((sid, skin_name_by_id.get(sid) or f"Skin {sid}"))
 
         return options
 
@@ -1155,13 +1114,13 @@ class MainWindow(QMainWindow):
         combo = combos[index]
         champ_id = combo.currentData()
         if not champ_id:
-            QMessageBox.warning(self, "Eksik Seçim", "Önce şampiyon seçmelisiniz.")
+            QMessageBox.warning(self, "No Selection", "Please select a champion first.")
             return
 
         try:
             champ_id_int = int(champ_id)
         except (TypeError, ValueError):
-            QMessageBox.warning(self, "Geçersiz", "Geçersiz şampiyon ID.")
+            QMessageBox.warning(self, "Invalid", "Invalid champion ID.")
             return
 
         base_skin_id = champ_id_int * 1000
@@ -1187,7 +1146,7 @@ class MainWindow(QMainWindow):
         try:
             options = self._load_skin_options_for_champion(champ_id_int)
         except Exception as e:
-            QMessageBox.critical(self, "Hata", f"Kostüm listesi alınamadı:\n{e}")
+            QMessageBox.critical(self, "Error", f"Could not retrieve skin list:\n{e}")
             return
 
         dialog = SkinSelectDialog(
@@ -1209,7 +1168,7 @@ class MainWindow(QMainWindow):
             return
 
         if new_skin_id == base_skin_id:
-            # Default seçildiyse tüm rollerden temizle.
+            # If default is selected, clear from all roles.
             for rk in list((self.custom_skins or {}).keys()):
                 skins = self.custom_skins.get(rk)
                 if not isinstance(skins, dict):
@@ -1244,10 +1203,10 @@ class MainWindow(QMainWindow):
                 raise RuntimeError(f"HTTP {resp.status_code}: {resp.text}")
 
             self._set_automation_ui_state("stopped")
-            QMessageBox.information(self, "Durduruldu", f"{APP_DISPLAY_NAME} durduruldu.")
+            QMessageBox.information(self, "Stopped", f"{APP_DISPLAY_NAME} stopped.")
         except Exception as e:
             self._set_automation_ui_state("offline")
-            QMessageBox.critical(self, "Hata", f"{APP_DISPLAY_NAME} durdurulamadı: {e}")
+            QMessageBox.critical(self, "Error", f"Could not stop {APP_DISPLAY_NAME}: {e}")
         finally:
             self._automation_action_inflight = False
             self._check_health_async()
@@ -1377,7 +1336,7 @@ class MainWindow(QMainWindow):
             return
 
         try:
-            # 1. Seçim doğrulama (tüm roller için)
+            # 1. Validate selections (all roles)
             role_display = {v: k for k, v in ROLES.items() if v is not None}
 
             missing_lines: list[str] = []
@@ -1388,17 +1347,17 @@ class MainWindow(QMainWindow):
                 champ_selected = any(cb.currentData() is not None for cb in combos)
 
                 if not ban_selected and not champ_selected:
-                    missing_lines.append(f"- {display}: ban ve şampiyon seçilmedi")
+                    missing_lines.append(f"- {display}: ban and champion not selected")
                 elif not ban_selected:
-                    missing_lines.append(f"- {display}: ban seçilmedi")
+                    missing_lines.append(f"- {display}: ban not selected")
                 elif not champ_selected:
-                    missing_lines.append(f"- {display}: en az 1 şampiyon seçilmedi")
+                    missing_lines.append(f"- {display}: at least 1 champion not selected")
 
             if missing_lines:
                 QMessageBox.warning(
                     self,
-                    "Eksik Seçim",
-                    f"{APP_DISPLAY_NAME} başlamadan önce tüm roller için ban ve en az 1 şampiyon seçmelisiniz:\n\n"
+                    "Missing Selection",
+                    f"You must select a ban and at least 1 champion for all roles before starting {APP_DISPLAY_NAME}:\n\n"
                     + "\n".join(missing_lines),
                 )
                 return
@@ -1406,7 +1365,7 @@ class MainWindow(QMainWindow):
             self._automation_action_inflight = True
             self._set_automation_ui_state("starting")
 
-            # API ayakta mı?
+            # Is the API up?
             try:
                 health = requests.get(f"{API_BASE}/health", timeout=API_TIMEOUT_SEC)
                 if health.status_code != 200:
@@ -1414,9 +1373,9 @@ class MainWindow(QMainWindow):
             except Exception as e:
                 QMessageBox.critical(
                     self,
-                    "Sunucu Çalışmıyor",
-                    f"FastAPI sunucusuna bağlanılamadı. Uygulamayı `run_app.py` / `{APP_DISPLAY_NAME}.exe` (eski: `LoLAutomation.exe`) ile başlattığınızdan emin olun.\n\n"
-                    f"Detay: {e}",
+                    "Server Not Running",
+                    f"Could not connect to the FastAPI server. Make sure you launched the app via `run_app.py` / `{APP_DISPLAY_NAME}.exe`.\n\n"
+                    f"Detail: {e}",
                 )
                 self._set_automation_ui_state("offline")
                 return
@@ -1431,15 +1390,15 @@ class MainWindow(QMainWindow):
             )
             if resp.status_code == 200:
                 self._set_automation_ui_state("running")
-                QMessageBox.information(self, "Başarılı", f"{APP_DISPLAY_NAME} başlatıldı!")
+                QMessageBox.information(self, "Success", f"{APP_DISPLAY_NAME} started!")
             else:
                 self._set_automation_ui_state("offline")
-                QMessageBox.critical(self, "Hata", f"API Hatası: {resp.status_code}\n\n{resp.text}")
+                QMessageBox.critical(self, "Error", f"API Error: {resp.status_code}\n\n{resp.text}")
         except Exception as e:
             import traceback
 
             self._set_automation_ui_state("offline")
-            QMessageBox.critical(self, "Hata", f"Başlatılamadı:\n{e}\n\n{traceback.format_exc()}")
+            QMessageBox.critical(self, "Error", f"Failed to start:\n{e}\n\n{traceback.format_exc()}")
         finally:
             self._automation_action_inflight = False
             self._check_health_async()
@@ -1667,13 +1626,7 @@ class MainWindow(QMainWindow):
         self._schedule_live_config_push()
 
     def _schedule_update_check(self) -> None:
-        """
-        Açılışta GitHub Releases üzerinden yeni sürüm var mı diye kontrol eder.
-
-        Notlar:
-        - Varsayılan repo: `UPDATE_REPO_DEFAULT` (ENV ile override edilebilir).
-        - `RUNEPILOT_DISABLE_AUTO_UPDATE=1` ile tamamen kapatılabilir.
-        """
+        """Checks GitHub Releases for a newer version on startup. Disable with RUNEPILOT_DISABLE_AUTO_UPDATE=1."""
         if self._update_check_started:
             return
 
@@ -1721,12 +1674,12 @@ class MainWindow(QMainWindow):
 
         msg = QMessageBox(self)
         msg.setIcon(QMessageBox.Icon.Information)
-        msg.setWindowTitle("Güncelleme Mevcut")
+        msg.setWindowTitle("Update Available")
 
         msg.setText(
-            f"{APP_DISPLAY_NAME} için yeni sürüm bulundu.\n\n"
-            f"Yüklü: {info.current_version}\n"
-            f"Yeni: {info.latest_version}"
+            f"A new version of {APP_DISPLAY_NAME} is available.\n\n"
+            f"Installed: {info.current_version}\n"
+            f"New: {info.latest_version}"
         )
 
         if info.release_notes:
@@ -1736,10 +1689,10 @@ class MainWindow(QMainWindow):
                 pass
 
         if info.asset_download_url:
-            primary_btn = msg.addButton("Güncelle", QMessageBox.ButtonRole.AcceptRole)
+            primary_btn = msg.addButton("Update", QMessageBox.ButtonRole.AcceptRole)
         else:
-            primary_btn = msg.addButton("Release Sayfasını Aç", QMessageBox.ButtonRole.AcceptRole)
-        msg.addButton("Daha Sonra", QMessageBox.ButtonRole.RejectRole)
+            primary_btn = msg.addButton("Open Release Page", QMessageBox.ButtonRole.AcceptRole)
+        msg.addButton("Later", QMessageBox.ButtonRole.RejectRole)
         msg.setDefaultButton(primary_btn)
 
         msg.exec()
@@ -1762,8 +1715,8 @@ class MainWindow(QMainWindow):
         dest_path = os.path.join(tempfile.gettempdir(), asset_name)
 
         try:
-            dlg = QProgressDialog("Güncelleme indiriliyor...", None, 0, 0, self)
-            dlg.setWindowTitle("Güncelleme")
+            dlg = QProgressDialog("Downloading update...", None, 0, 0, self)
+            dlg.setWindowTitle("Update")
             dlg.setWindowModality(Qt.WindowModality.ApplicationModal)
             dlg.setCancelButton(None)
             dlg.setMinimumDuration(0)
@@ -1790,13 +1743,13 @@ class MainWindow(QMainWindow):
             self._update_progress_dialog = None
 
         if not ok:
-            QMessageBox.critical(self, "Güncelleme", f"Güncelleme indirilemedi:\n\n{err or 'Bilinmeyen hata'}")
+            QMessageBox.critical(self, "Update", f"Update download failed:\n\n{err or 'Unknown error'}")
             return
 
         try:
             os.startfile(path)
         except Exception as e:
-            QMessageBox.critical(self, "Güncelleme", f"Installer başlatılamadı:\n\n{e}")
+            QMessageBox.critical(self, "Update", f"Could not launch installer:\n\n{e}")
             return
 
         try:
@@ -1815,7 +1768,7 @@ class MainWindow(QMainWindow):
 
     def set_combo_by_data(self, combo: QComboBox, value):
         if value is None:
-            combo.setCurrentIndex(0) # "Seçiniz" usually
+            combo.setCurrentIndex(0) # first item ("Select" or similar)
             return
             
         index = combo.findData(value)
@@ -1828,20 +1781,20 @@ class MainWindow(QMainWindow):
         self.load_config()
 
     def load_champions(self):
-        # Rol bazlı ban combolarını temizle
+        # Clear role-based ban combos
         for cb in self.role_ban_combos.values():
             cb.clear()
-            cb.addItem("Yok", None)
+            cb.addItem("None", None)
 
-        # Tüm rol combolarını temizle
+        # Clear all role combos
         for combos in self.role_combos.values():
             for cb in combos:
                 cb.clear()
-                cb.addItem("Seçiniz", None)
+                cb.addItem("Select", None)
 
         all_champs = get_champion_summary()
         if not all_champs:
-            QMessageBox.critical(self, "Hata", "Şampiyon listesi alınamadı. League Client açık mı?")
+            QMessageBox.critical(self, "Error", "Could not retrieve champion list. Is League Client running?")
             return
 
         all_sorted = sorted(all_champs, key=lambda c: c.get("name", ""))
@@ -1895,10 +1848,7 @@ class MainWindow(QMainWindow):
         self.update_all_skin_buttons()
 
     def check_game_phase(self):
-        """
-        LCU gameflow fazını izler.
-        GameStart veya InProgress olduğunda bir kere bildirim atar.
-        """
+        """Monitors LCU gameflow phase and fires a toast notification once when a game starts."""
         phase = get_gameflow_phase_safe()
         if phase is None:
             return
@@ -1910,7 +1860,7 @@ class MainWindow(QMainWindow):
             if phase in ("GameStart", "InProgress"):
                 self.toaster.show_toast(
                     APP_DISPLAY_NAME,
-                    "Oyun başladı! Seçimler uygulandı.",
+                    "Game started! Selections applied.",
                     duration=5,
                     threaded=True,
                 )
@@ -1924,24 +1874,24 @@ class MainWindow(QMainWindow):
             self.activateWindow()
 
     def changeEvent(self, event):
-        """Pencere Simge Durumuna Küçültüldüğünde System Tray'e saklan."""
+        """Hide to system tray when the window is minimized."""
         if event.type() == QEvent.Type.WindowStateChange:
             if self.isMinimized():
                 self.hide()
                 self.tray_icon.showMessage(
                     APP_DISPLAY_NAME,
-                    "RunePilot arka planda çalışmaya devam ediyor.",
+                    "RunePilot continues running in the background.",
                     QSystemTrayIcon.MessageIcon.Information,
                     2000
                 )
         super().changeEvent(event)
 
     def _invoke_on_main(self, call):
-        """Thread içinden ana UI thread'ine dönmek için."""
+        """Schedule a call on the main UI thread from a background thread."""
         QTimer.singleShot(0, call)
 
 def main() -> None:
-    """Masaüstü uygulamasını başlatır (Qt event loop)."""
+    """Launch the desktop application (Qt event loop)."""
     app = QApplication(sys.argv)
     app.setStyle("Fusion")  # Optional: base style
     app.setStyleSheet(STYLESHEET)
@@ -1952,7 +1902,7 @@ def main() -> None:
         app.setWindowIcon(QIcon(resource_path("assets/app_icon.png")))
     except Exception:
         pass
-    
+
     from src.rune_pilot.presentation.login_window import LoginWindow
     from src.rune_pilot.application.account_service import AccountService
     from src.rune_pilot.shared.config import CONFIG_FILE
@@ -1960,21 +1910,19 @@ def main() -> None:
     # 1. Launcher: Login Window
     account_service = AccountService(CONFIG_FILE)
     login_win = LoginWindow(account_service)
-    
-    # 2. Ana Uygulama: Sadece Login tamamlandığında başlatılır
-    # MainWindow __init__ kısmındaki timer'ların hemen çalışmaması için burada bekletiyoruz.
+
+    # 2. Main Window: only started after login completes
     main_win = None
-    
+
     def start_main_app():
         nonlocal main_win
         login_win.close()
-        
+
         main_win = MainWindow()
         main_win.show()
-        # Eğer tray'e gidiyorsa bilgilendirme yapabilir
         main_win.tray_icon.showMessage(
             APP_DISPLAY_NAME,
-            "RunePilot Başladı. Seçimlerinizi yapabilirsiniz.",
+            "RunePilot started. You can now configure your selections.",
             QSystemTrayIcon.MessageIcon.Information,
             3000
         )

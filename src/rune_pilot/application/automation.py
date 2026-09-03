@@ -1,9 +1,4 @@
-"""
-RunePilot otomasyon döngüsü.
-
-Arka planda çalışan ana otomasyon thread'i: lobi yönetimi, şampiyon seçimi,
-rün uygulama, büyücü büyüleri ve kostüm seçimi.
-"""
+"""RunePilot automation loop — background thread for lobby management, pick/ban, runes, spells, and skins."""
 
 from __future__ import annotations
 
@@ -39,11 +34,11 @@ AUTOMATION_LOCK = threading.Lock()
 
 def apply_runes_impl(session: dict[str, Any], cfg: dict[str, Any]) -> bool:
     """
-    Seçili şampiyon için rün sayfasını uygular.
+    Applies the rune page for the currently selected champion.
 
-    Öncelik:
-    1) Kullanıcının seçtiği özel preset (varsa)
-    2) `runes.json` içinden en yüksek kazanma oranına sahip öneri
+    Priority:
+    1) User-selected custom preset (if configured)
+    2) Highest win-rate recommendation from runes.json
     """
     my_cell = session.get("localPlayerCellId")
     my_champ_id = 0
@@ -265,7 +260,7 @@ def apply_runes_impl(session: dict[str, Any], cfg: dict[str, Any]) -> bool:
 
 
 def automation_loop() -> None:
-    """Arka planda çalışan otomasyon döngüsü (thread target)."""
+    """Background automation loop (thread target)."""
     global RUNNING, CURRENT_CONFIG
     print("[AUTO] Automation loop started")
     last_queue_action_ts = 0.0

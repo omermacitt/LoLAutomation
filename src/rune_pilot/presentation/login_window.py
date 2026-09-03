@@ -1,8 +1,4 @@
-"""
-Hesaplar (Accounts) yönetim penceresi.
-Uygulama başlatıldığında ilk olarak bu pencere açılır; kullanıcı giriş yapabilir 
-veya giriş yapmadan devam edebilir.
-"""
+"""Account management window — shown on startup; user can auto-login or skip."""
 
 import threading
 from PyQt6.QtGui import QIcon
@@ -18,10 +14,10 @@ from src.rune_pilot.domain.account_model import Account
 from src.rune_pilot.shared.resource import resource_path
 
 class AddAccountDialog(QDialog):
-    """Yeni hesap eklemek veya düzenlemek için form penceresi."""
+    """Form dialog for adding or editing an account."""
     def __init__(self, parent=None, account: Account = None):
         super().__init__(parent)
-        self.setWindowTitle("Hesap Ekle" if not account else "Hesap Düzenle")
+        self.setWindowTitle("Add Account" if not account else "Edit Account")
         self.setMinimumWidth(300)
         self.account = account
         
@@ -35,16 +31,16 @@ class AddAccountDialog(QDialog):
         self.game_name_input = QLineEdit()
         self.tag_line_input = QLineEdit()
         
-        form_layout.addRow("Kullanıcı Adı:", self.user_input)
-        form_layout.addRow("Şifre:", self.pass_input)
-        form_layout.addRow("Oyun İçi Ad (Opsiyonel):", self.game_name_input)
-        form_layout.addRow("Etiket (Opsiyonel):", self.tag_line_input)
-        
+        form_layout.addRow("Username:", self.user_input)
+        form_layout.addRow("Password:", self.pass_input)
+        form_layout.addRow("In-Game Name (Optional):", self.game_name_input)
+        form_layout.addRow("Tag (Optional):", self.tag_line_input)
+
         layout.addLayout(form_layout)
-        
+
         if account:
             self.user_input.setText(account.username)
-            self.pass_input.setPlaceholderText("(Değiştirmek için girin)")
+            self.pass_input.setPlaceholderText("(Enter to change)")
             self.game_name_input.setText(account.game_name or "")
             self.tag_line_input.setText(account.tag_line or "")
             
@@ -57,10 +53,10 @@ class AddAccountDialog(QDialog):
         user = self.user_input.text().strip()
         pwd = self.pass_input.text().strip()
         if not user:
-            QMessageBox.warning(self, "Hata", "Kullanıcı adı zorunludur.")
+            QMessageBox.warning(self, "Error", "Username is required.")
             return
         if not self.account and not pwd:
-            QMessageBox.warning(self, "Hata", "Şifre zorunludur.")
+            QMessageBox.warning(self, "Error", "Password is required.")
             return
             
         self.accept()
@@ -74,16 +70,16 @@ class AddAccountDialog(QDialog):
         )
 
 class LoginWindow(QMainWindow):
-    """RunePilot Başlatıcı (Launcher) ve Hesap Yönetim Penceresi."""
-    
-    login_successful = pyqtSignal() 
+    """RunePilot launcher and account management window."""
+
+    login_successful = pyqtSignal()
     skip_login = pyqtSignal()
-    _login_finished = pyqtSignal(dict) # Arka plan işleminden dönen sonucu UI'a taşımak için
-    
+    _login_finished = pyqtSignal(dict)  # Carries the background thread result to the UI thread
+
     def __init__(self, account_service: AccountService):
         super().__init__()
         self.account_service = account_service
-        self.setWindowTitle("RunePilot - Hesap Seçimi")
+        self.setWindowTitle("RunePilot - Account Selection")
         self.setWindowIcon(QIcon(resource_path("assets/app_icon.png")))
         self.resize(500, 350)
         self._login_finished.connect(self._on_done)
@@ -94,46 +90,41 @@ class LoginWindow(QMainWindow):
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
         layout = QVBoxLayout(central_widget)
-        
-        # Bilgi
-        info_lbl = QLabel("Hoş Geldiniz!\nRiot Client üzerinden otomatik giriş yapmak için bir hesap seçin veya ekleyin.\nŞifreleriniz diskinizde yalnızca bu bilgisayara özel şifrelenmektedir.")
+
+        info_lbl = QLabel("Welcome!\nSelect or add an account to auto-login via Riot Client.\nPasswords are stored encrypted on this machine only.")
         info_lbl.setWordWrap(True)
         layout.addWidget(info_lbl)
-        
-        # Liste
+
         self.list_widget = QListWidget()
         layout.addWidget(self.list_widget)
-        
-        # Hesap Yönetim Butonları
+
         manage_btn_layout = QHBoxLayout()
-        self.add_btn = QPushButton("Hesap Ekle")
+        self.add_btn = QPushButton("Add Account")
         self.add_btn.clicked.connect(self._on_add_clicked)
-        self.edit_btn = QPushButton("Düzenle")
+        self.edit_btn = QPushButton("Edit")
         self.edit_btn.clicked.connect(self._on_edit_clicked)
-        self.del_btn = QPushButton("Sil")
+        self.del_btn = QPushButton("Delete")
         self.del_btn.clicked.connect(self._on_del_clicked)
-        
+
         manage_btn_layout.addWidget(self.add_btn)
         manage_btn_layout.addWidget(self.edit_btn)
         manage_btn_layout.addWidget(self.del_btn)
         manage_btn_layout.addStretch()
         layout.addLayout(manage_btn_layout)
-        
-        # Ayrım Çizgisi
+
         line = QWidget()
         line.setFixedHeight(1)
         line.setStyleSheet("background-color: #444;")
         layout.addWidget(line)
 
-        # Başlatma Butonları
         action_btn_layout = QHBoxLayout()
-        
-        self.skip_btn = QPushButton("Giriş Yapmadan Devam Et")
-        self.skip_btn.setToolTip("Riot Client zaten açıksa veya el ile giriş yapacaksanız tıklayın.")
+
+        self.skip_btn = QPushButton("Continue Without Login")
+        self.skip_btn.setToolTip("Click if Riot Client is already open or you want to log in manually.")
         self.skip_btn.clicked.connect(self.skip_login.emit)
-        
-        self.login_btn = QPushButton("Seçili Hesapla Giriş Yap (Auto-Login)")
-        self.login_btn.setObjectName("startButton") # Yeşile boyanması için QSS ID'si
+
+        self.login_btn = QPushButton("Login & Launch League of Legends")
+        self.login_btn.setObjectName("startButton")  # QSS ID for green styling
         self.login_btn.clicked.connect(self._on_login_clicked)
         self.login_btn.setMinimumHeight(35)
         
@@ -167,7 +158,7 @@ class LoginWindow(QMainWindow):
     def _on_edit_clicked(self):
         acc_id = self._get_selected_account_id()
         if not acc_id:
-            QMessageBox.warning(self, "Hata", "Lütfen düzenlemek için bir hesap seçin.")
+            QMessageBox.warning(self, "Error", "Please select an account to edit.")
             return
             
         acc = next((a for a in self.account_service.get_accounts() if a.id == acc_id), None)
@@ -182,10 +173,10 @@ class LoginWindow(QMainWindow):
     def _on_del_clicked(self):
         acc_id = self._get_selected_account_id()
         if not acc_id:
-            QMessageBox.warning(self, "Hata", "Lütfen silmek için bir hesap seçin.")
+            QMessageBox.warning(self, "Error", "Please select an account to delete.")
             return
-            
-        reply = QMessageBox.question(self, "Onay", "Bu hesabı silmek istediğinize emin misiniz?", 
+
+        reply = QMessageBox.question(self, "Confirm", "Are you sure you want to delete this account?",
                                      QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
         if reply == QMessageBox.StandardButton.Yes:
             self.account_service.delete_account(acc_id)
@@ -194,54 +185,45 @@ class LoginWindow(QMainWindow):
     def _on_login_clicked(self):
         acc_id = self._get_selected_account_id()
         if not acc_id:
-            QMessageBox.warning(self, "Hata", "Giriş yapmak için lütfen bir hesap seçin.")
+            QMessageBox.warning(self, "Error", "Please select an account to log in.")
             return
-            
+
         self.login_btn.setEnabled(False)
         self.skip_btn.setEnabled(False)
-        self.login_btn.setText("Giriş yapılıyor, lütfen bekleyin...")
-        
+        self.login_btn.setText("Logging in… this may take up to 40 s")
+
         def _bg_worker():
             try:
                 result = self.account_service.auto_login(acc_id)
             except Exception as e:
-                result = {"type": "error", "message": f"Beklenmedik hata: {str(e)}"}
+                result = {"type": "error", "message": f"Unexpected error: {str(e)}"}
             self._login_finished.emit(result)
-            
-        # Arka plan denemesi başlat
+
         thread = threading.Thread(target=_bg_worker, daemon=True)
         thread.start()
 
     def _on_done(self, result: dict):
         self.login_btn.setEnabled(True)
         self.skip_btn.setEnabled(True)
-        self.login_btn.setText("Seçili Hesapla Giriş Yap (Auto-Login)")
-        
-        # Riot API/UI Automation yanıt tiplerini çözümle
+        self.login_btn.setText("Login & Launch League of Legends")
+
         res_type = result.get("type")
         res_error = result.get("error")
-        
+
         if res_type == "error":
-            QMessageBox.critical(self, "Hata", f"Giriş Başarısız:\n{result.get('message', 'Bilinmeyen Hata')}")
+            QMessageBox.critical(self, "Error", f"Login Failed:\n{result.get('message', 'Unknown Error')}")
         elif res_error == "auth_failure" or res_type == "auth_failure":
-            QMessageBox.warning(self, "Hata", "Kullanıcı adı veya şifre yanlış.\nLütfen hesap bilgilerinizi düzenleyip tekrar deneyin.")
+            QMessageBox.warning(self, "Error", "Incorrect username or password.\nPlease edit the account and try again.")
         elif res_type == "multifactor" or res_error == "multifactor":
-            QMessageBox.warning(self, "İki Adımlı Doğrulama", "İki adımlı doğrulama (2FA) talep ediliyor. Lütfen Riot Client üzerinden doğrulama kodunu kendiniz girin.\nDoğrulama tamamlandıktan sonra 'Giriş Yapmadan Devam Et' butonuna tıklayın.")
+            QMessageBox.warning(self, "Two-Factor Authentication", "Two-factor authentication (2FA) is required. Please enter the verification code in Riot Client manually.\nAfter completing verification, click 'Continue Without Login'.")
+        elif res_type == "captcha":
+            QMessageBox.warning(self, "Captcha Required", result.get("message", "Riot Client requires captcha verification.\nPlease complete the login in the Riot Client window manually.\nAfter logging in, click 'Continue Without Login'."))
+        elif res_type == "captcha_ui":
+            QMessageBox.information(self, "Action Required", result.get("message",
+                "Your credentials have been entered in Riot Client.\n"
+                "If a captcha appeared, please solve it, then click 'Continue Without Login'."))
         elif res_type == "response":
-            # UI Automation: form dolduruldu ve gönderildi.
-            # Kullanıcı Riot Client'ı kontrol etmeli.
-            reply = QMessageBox.question(
-                self,
-                "Giriş Formu Gönderildi",
-                f"{result.get('message', 'Giriş formu gönderildi.')}\n\n"
-                "Riot Client'ta giriş başarıyla tamamlandı mı?\n\n"
-                "• Evet → Ana ekrana geç\n"
-                "• Hayır → Geri dön ve tekrar dene",
-                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-                QMessageBox.StandardButton.Yes
-            )
-            if reply == QMessageBox.StandardButton.Yes:
-                self.login_successful.emit()
+            self.login_successful.emit()
         else:
-            QMessageBox.warning(self, "Bilinmeyen Durum", f"Giriş isteği tamamlandı ancak yanıt sınıflandırılamadı.\n{result}")
+            QMessageBox.warning(self, "Unknown Status", f"Login request completed but the response could not be classified.\n{result}")
 

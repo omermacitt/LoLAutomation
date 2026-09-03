@@ -1,8 +1,4 @@
-"""
-RunePilot FastAPI endpoint tanımları.
-
-Health-check, otomasyon başlatma/durdurma ve şampiyon listesi endpoint'leri.
-"""
+"""RunePilot FastAPI endpoint definitions — health-check, automation control, champion list."""
 
 from __future__ import annotations
 
@@ -23,22 +19,22 @@ import threading
 
 
 def register_routes(app: FastAPI) -> None:
-    """Tüm FastAPI route'larını app'e kaydeder."""
+    """Registers all FastAPI routes on the app."""
 
     @app.get("/health")
     def health():
-        """Basit health-check endpoint'i."""
+        """Simple health-check endpoint."""
         from src.rune_pilot.application.automation import RUNNING as _running
         return {"status": "ok", "running": _running, "version": __version__}
 
     @app.get("/champions")
     def champions():
-        """UI için sahip olunan şampiyon listesini döndürür."""
+        """Returns the list of owned champions for the UI."""
         return _get_champions()
 
     @app.post("/start_automation")
     def start_automation(config: AutomationConfig):
-        """Otomasyonu başlatır veya çalışan konfigürasyonu günceller."""
+        """Starts the automation loop or updates the running configuration."""
         import src.rune_pilot.application.automation as auto
 
         with auto.AUTOMATION_LOCK:
@@ -54,7 +50,7 @@ def register_routes(app: FastAPI) -> None:
 
     @app.post("/stop_automation")
     def stop_automation():
-        """Otomasyonu durdurur (thread bir sonraki turda döngüden çıkar)."""
+        """Stops the automation loop (the thread exits on its next iteration)."""
         import src.rune_pilot.application.automation as auto
 
         with auto.AUTOMATION_LOCK:

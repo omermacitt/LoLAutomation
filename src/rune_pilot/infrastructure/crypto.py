@@ -1,6 +1,7 @@
 """
-Güvenli şifreleme/şifre çözme işlemleri.
-Yerel makineye özgü bir şifreleme anahtarı (Fernet) kullanarak şifreleri saklar.
+Secure password encryption/decryption using a machine-specific Fernet key.
+
+Encrypted data can only be decrypted on the same machine and user account.
 """
 
 import base64
@@ -11,16 +12,16 @@ from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 
 def _get_machine_key() -> bytes:
     """
-    Geçerli Windows kullanıcısı ve makine adına göre deterministik bir anahtar üretir.
-    Böylece şifrelenmiş veriler sadece bu bilgisayarda ve bu kullanıcı oturumunda çözülebilir.
+    Derives a deterministic key from the current Windows username and computer name.
+    Ensures encrypted credentials can only be decrypted on this machine and user session.
     """
     # Use environment variables that are tied to the local machine and user
     user = os.getenv("USERNAME", "default_user")
     computer = os.getenv("COMPUTERNAME", "default_computer")
-    
+
     # Combine them to build a unique machine identifier
     machine_id = f"{user}_{computer}".encode("utf-8")
-    
+
     # Use PBKDF2 to derive a 32-byte secure key from the machine identifier
     kdf = PBKDF2HMAC(
         algorithm=hashes.SHA256(),
@@ -32,7 +33,7 @@ def _get_machine_key() -> bytes:
     return key
 
 def encrypt_password(plain_text: str) -> str:
-    """Parolayı yerel makineye özel anahtarla şifreler."""
+    """Encrypts a password using the machine-specific key."""
     if not plain_text:
         return ""
     fernet = Fernet(_get_machine_key())
@@ -40,7 +41,7 @@ def encrypt_password(plain_text: str) -> str:
     return encrypted.decode("utf-8")
 
 def decrypt_password(encrypted_text: str) -> str:
-    """Parolanın şifresini çözer."""
+    """Decrypts an encrypted password."""
     if not encrypted_text:
         return ""
     try:
@@ -48,5 +49,5 @@ def decrypt_password(encrypted_text: str) -> str:
         decrypted = fernet.decrypt(encrypted_text.encode("utf-8"))
         return decrypted.decode("utf-8")
     except Exception:
-        # Şifre çözülemezse (başka makineye taşınmışsa veya bozuksa) boş dönebiliriz.
+        # Returns empty string if decryption fails (e.g. moved to another machine or data is corrupt).
         return ""

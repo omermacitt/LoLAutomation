@@ -1,8 +1,4 @@
-"""
-PyInstaller-uyumlu kaynak dosya yolu çözümleyici.
-
-Hem geliştirme hem de paketlenmiş modda çalışır.
-"""
+"""PyInstaller-compatible resource path resolver. Works in both dev and bundled modes."""
 
 from __future__ import annotations
 
@@ -11,7 +7,7 @@ import sys
 
 
 def resource_path(relative_path: str) -> str:
-    """PyInstaller ile paketlenmiş dosyalar için güvenli mutlak yol döndürür."""
+    """Returns an absolute path to a resource, compatible with PyInstaller bundles."""
     try:
         base_path = sys._MEIPASS  # type: ignore[attr-defined]
     except AttributeError:

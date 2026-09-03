@@ -1,8 +1,7 @@
 """
-OP.GG rün verisi scraper'ı.
+OP.GG rune data scraper.
 
-Selenium ile OP.GG üzerinden şampiyon rün verilerini çeker ve runes.json
-dosyasına yazar.
+Uses Selenium to scrape champion rune data from OP.GG and write it to runes.json.
 """
 
 import json
@@ -76,10 +75,7 @@ def extract_shard_ids(row):
 
 
 def get_all_champions_from_lcu() -> list[dict]:
-    """
-    LCU'dan tüm şampiyonları çeker.
-    /lol-game-data/assets/v1/champion-summary.json
-    """
+    """Fetches all champions from the LCU champion-summary endpoint."""
     res = lcu_request("GET", "/lol-game-data/assets/v1/champion-summary.json")
     res.raise_for_status()
     return res.json()
@@ -87,9 +83,8 @@ def get_all_champions_from_lcu() -> list[dict]:
 
 def champion_slug(champion: dict) -> str:
     """
-    OP.GG URL'inde kullanılacak champion slug'ı.
-    Temel mantık: alias'ı lower() yapmak, bazı özel isimler için
-    manuel map gerekirse buraya eklenebilir.
+    Returns the champion slug used in OP.GG URLs.
+    Base logic: lowercase the alias; add special-case mappings here if needed.
     """
     alias = (champion.get("alias") or champion.get("name") or "").strip()
     special = {
@@ -102,10 +97,7 @@ def champion_slug(champion: dict) -> str:
 
 
 def scrape_runes_for_champion(driver: webdriver.Chrome, slug: str) -> dict:
-    """
-    Verilen champion slug'ı için OP.GG runes sayfasını
-    scrape edip rune_X yapıları döndürür.
-    """
+    """Scrapes the OP.GG runes page for a champion slug and returns rune_X structures."""
     url = (
         f"https://op.gg/lol/champions/{slug}/runes/top"
         "?region=global&type=ranked&tier=emerald_plus&patch=15.23"
@@ -163,11 +155,7 @@ def scrape_runes_for_champion(driver: webdriver.Chrome, slug: str) -> dict:
 
 
 def scrape_all_champions():
-    """
-    LCU'dan tüm şampiyonları alır, her biri için OP.GG'den
-    rune verisini çekip {champ_slug: {rune_1: {...}, ...}} döndürür
-    ve JSON olarak yazdırır.
-    """
+    """Fetches all champions from LCU, scrapes rune data for each from OP.GG, and writes runes.json."""
     champions = get_all_champions_from_lcu()
     print("///////////////////////////////")
     print(champions)
@@ -203,7 +191,7 @@ def scrape_all_champions():
         with open("runes.json", "w", encoding="utf-8") as f:
             json.dump(all_result, f, ensure_ascii=False, indent=2)
 
-        input("\nrunes.json oluşturuldu. Çıkmak için Enter'a bas...")
+        input("\nrunes.json created. Press Enter to exit...")
     finally:
         driver.quit()
 

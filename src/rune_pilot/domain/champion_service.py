@@ -1,8 +1,6 @@
-"""
-RunePilot şampiyon servisi.
+"""RunePilot champion service — pure normalization and slug helpers (no LCU dependency).
 
-Saf normalizasyon ve slug çözümleme yardımcıları (LCU bağımlılığı yok).
-LCU'ya bağımlı fonksiyonlar application/champion_query.py içinde tanımlanmıştır.
+LCU-dependent functions are in application/champion_query.py.
 """
 
 from __future__ import annotations
@@ -25,7 +23,7 @@ def champion_slug_from_alias(alias: str) -> str:
 
 
 def normalize_champion_id(value: Any) -> int | None:
-    """Kullanıcı/LCU inputunu pozitif champ_id değerine normalize eder."""
+    """Normalizes user/LCU input to a positive champion ID."""
     try:
         cid = int(value)
     except (TypeError, ValueError):
@@ -34,7 +32,7 @@ def normalize_champion_id(value: Any) -> int | None:
 
 
 def normalize_spell_id(value: Any) -> int | None:
-    """Kullanıcı/LCU inputunu pozitif spell_id değerine normalize eder."""
+    """Normalizes user/LCU input to a positive spell ID."""
     try:
         sid = int(value)
     except (TypeError, ValueError):

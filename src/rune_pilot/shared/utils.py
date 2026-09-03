@@ -1,4 +1,4 @@
-"""RunePilot paylaşımlı yardımcı fonksiyonlar."""
+"""RunePilot shared utility functions."""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ from typing import Any
 
 
 def safe_int_list(values: Any) -> list[int]:
-    """Liste içindeki değerleri int'e çevirir; çevrilemeyenleri atlar."""
+    """Converts list values to int, silently skipping values that cannot be converted."""
     result: list[int] = []
     if not isinstance(values, list):
         return result

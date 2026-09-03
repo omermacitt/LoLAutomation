@@ -1,8 +1,8 @@
 """
 LCU (League Client Update) API helper.
 
-League of Legends istemcisi, yerel makinede (127.0.0.1) HTTPS üzerinden bir API
-yayınlar. Bu API'ye erişim için lockfile içindeki port/şifre bilgisi gerekir.
+The League of Legends client exposes a local HTTPS API on 127.0.0.1.
+Access requires the port and password from the lockfile.
 """
 
 from __future__ import annotations
@@ -25,11 +25,11 @@ DEFAULT_LOCKFILE_PATHS: tuple[str, ...] = (
 
 def find_lockfile_path() -> str:
     """
-    Lockfile yolunu bulur.
+    Locates the League Client lockfile.
 
-    Öncelik:
-    1) `LOL_LOCKFILE` / `LOL_LOCKFILE_PATH` ortam değişkeni
-    2) Yaygın kurulum yolları (`DEFAULT_LOCKFILE_PATHS`)
+    Priority:
+    1) `LOL_LOCKFILE` / `LOL_LOCKFILE_PATH` environment variable
+    2) Common installation paths (`DEFAULT_LOCKFILE_PATHS`)
     """
     env_path = os.getenv("LOL_LOCKFILE") or os.getenv("LOL_LOCKFILE_PATH")
     if env_path:
@@ -42,36 +42,36 @@ def find_lockfile_path() -> str:
             return path
 
     raise FileNotFoundError(
-        "League Client lockfile bulunamadı. League Client'ın açık olduğundan emin olun "
-        "ve gerekirse `LOL_LOCKFILE` ortam değişkenini lockfile yoluna ayarlayın."
+        "League Client lockfile not found. Make sure League Client is running "
+        "and set the `LOL_LOCKFILE` environment variable if it is installed in a non-standard path."
     )
 
 
 def get_lcu_credentials(lockfile_path: str | None = None) -> tuple[str, str]:
     """
-    Lockfile'dan (port, password) okur.
+    Reads (port, password) from the lockfile.
 
-    Lockfile formatı genelde: `name:pid:port:password:protocol`
+    Lockfile format: `name:pid:port:password:protocol`
     """
     path = lockfile_path or find_lockfile_path()
     with open(path, "r", encoding="utf-8", errors="replace") as f:
         parts = f.read().strip().split(":")
 
     if len(parts) < 4:
-        raise ValueError(f"Beklenmeyen lockfile formatı: {path}")
+        raise ValueError(f"Unexpected lockfile format: {path}")
 
     port = parts[2].strip()
     password = parts[3].strip()
     if not port or not password:
-        raise ValueError(f"Lockfile içinde port/şifre boş: {path}")
+        raise ValueError(f"Port or password is empty in lockfile: {path}")
     return port, password
 
 
 def lcu_request(method: str, endpoint: str, json_body: Any | None = None) -> requests.Response:
     """
-    LCU API'ye authenticated istek atar.
+    Sends an authenticated request to the LCU API.
 
-    `endpoint` değeri `/lol-...` gibi başlamalıdır.
+    `endpoint` must start with `/lol-...`.
     """
     port, password = get_lcu_credentials()
     url = f"https://127.0.0.1:{port}{endpoint}"

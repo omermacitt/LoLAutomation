@@ -1,17 +1,15 @@
-"""
-Hesap yönetimi için Domain modelleri.
-"""
+"""Domain models for account management."""
 
 from typing import Optional
 from pydantic import BaseModel, Field
 
 class Account(BaseModel):
-    """Kayıtlı Riot/LoL hesap modeli."""
-    id: str = Field(description="Hesap için benzersiz kimlik (UUID)")
-    username: str = Field(description="Riot giriş kullanıcı adı")
-    encrypted_password: str = Field(description="Şifrelenmiş parola")
-    game_name: Optional[str] = Field(default=None, description="Oyun içi görünen ad (Örn: Faker)")
-    tag_line: Optional[str] = Field(default=None, description="Etiket (Örn: T1)")
+    """Stored Riot/LoL account model."""
+    id: str = Field(description="Unique account identifier (UUID)")
+    username: str = Field(description="Riot login username")
+    encrypted_password: str = Field(description="Encrypted password")
+    game_name: Optional[str] = Field(default=None, description="In-game display name (e.g. Faker)")
+    tag_line: Optional[str] = Field(default=None, description="Tag line (e.g. T1)")
     
     @property
     def display_name(self) -> str:

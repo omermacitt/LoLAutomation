@@ -1,8 +1,8 @@
 """
-RunePilot giriş noktası.
+RunePilot entry point.
 
-FastAPI servisini (arka planda) başlatır ve PyQt masaüstü arayüzünü açar.
-PyInstaller ile exe üretmek için `run_app.spec` kullanılır.
+Starts the FastAPI service in a background thread and opens the PyQt desktop UI.
+Use `run_app.spec` to build an EXE with PyInstaller.
 """
 
 import threading
@@ -17,12 +17,12 @@ sys.path.append(os.path.abspath(os.path.dirname(__file__)))
 from src.rune_pilot.shared.app_meta import APP_DISPLAY_NAME, APP_ID
 
 def get_log_path() -> str:
-    """Uygulama log dosyası yolunu (`%APPDATA%\\RunePilot\\run_app.log`) döndürür."""
+    """Returns the application log file path (`%APPDATA%\\RunePilot\\run_app.log`)."""
     base_dir = os.getenv("APPDATA") or os.path.expanduser("~")
     return os.path.join(base_dir, APP_ID, "run_app.log")
 
 def log_line(message: str) -> None:
-    """Log dosyasına tek satır yazar (hataları sessizce yutar)."""
+    """Appends a single timestamped line to the log file (silently ignores errors)."""
     try:
         log_path = get_log_path()
         os.makedirs(os.path.dirname(log_path), exist_ok=True)
@@ -33,11 +33,11 @@ def log_line(message: str) -> None:
         pass
 
 def format_exception(e: Exception) -> str:
-    """Exception'ı stacktrace ile string'e çevirir."""
+    """Formats an exception with its full traceback as a string."""
     return "".join(traceback.format_exception(type(e), e, e.__traceback__)).strip()
 
 def start_server() -> None:
-    """FastAPI servisini uvicorn ile başlatır (thread içinde çalışır)."""
+    """Starts the FastAPI service via uvicorn (runs inside a background thread)."""
     try:
         import uvicorn
 
@@ -75,6 +75,15 @@ if __name__ == "__main__":
         # Start API in a separate thread
         server_thread = threading.Thread(target=start_server, daemon=True)
         server_thread.start()
+
+        # Auto-launch Riot Client if it isn't already running
+        try:
+            from src.rune_pilot.infrastructure.riot_client import is_riot_client_running, launch_riot_client
+            if not is_riot_client_running():
+                log_line("[RUN_APP] Riot Client not running — launching automatically...")
+                launch_riot_client()
+        except Exception as e:
+            log_line(f"[RUN_APP] Could not auto-launch Riot Client: {e}")
 
         # Run the GUI in the main thread
         from src.rune_pilot.presentation.main_window import main as start_gui

@@ -1,8 +1,4 @@
-"""
-RunePilot lobi ve sıra yönetimi servisi.
-
-Lobi oluşturma, sıraya girme, ban atma ve şampiyon seçme işlemleri.
-"""
+"""RunePilot lobby and queue management service — lobby creation, matchmaking, ban, and champion pick."""
 
 from __future__ import annotations
 
@@ -18,7 +14,7 @@ LAST_BAN_SKIP: tuple[int, int] | None = None
 
 
 def is_banned(session: dict[str, Any], champ_id: int) -> bool:
-    """Şampiyon seçim ekranında verilen champ_id için ban durumunu döndürür."""
+    """Returns True if the given champion ID is banned in the current champ-select session."""
     bans = session.get("bans") or {}
     if not isinstance(bans, dict):
         return False
@@ -33,7 +29,7 @@ def is_banned(session: dict[str, Any], champ_id: int) -> bool:
 
 
 def is_picked(session: dict[str, Any], champ_id: int) -> bool:
-    """Şampiyon seçim ekranında champ_id'nin picklenmiş olup olmadığını döndürür."""
+    """Returns True if the given champion ID is already picked in the current session."""
     try:
         champ_id_int = int(champ_id)
     except (TypeError, ValueError):
@@ -54,7 +50,7 @@ def is_picked(session: dict[str, Any], champ_id: int) -> bool:
 
 
 def is_teammate_showing(session: dict[str, Any], champ_id: int) -> bool:
-    """Takım arkadaşının champ_id'yi gösteriyor/niyet ediyor olup olmadığını kontrol eder."""
+    """Returns True if a teammate is hovering or intending to pick the given champion."""
     try:
         cid = int(champ_id)
     except (TypeError, ValueError):
@@ -81,7 +77,7 @@ def is_teammate_showing(session: dict[str, Any], champ_id: int) -> bool:
 
 
 def do_ban(session: dict[str, Any], champ_id: int) -> None:
-    """Oyuncunun ban aksiyonu açıksa, champ_id için ban atmayı dener."""
+    """Attempts to ban the given champion if the player's ban action is open."""
     global LAST_BAN_SKIP
     my_cell = session.get("localPlayerCellId")
 
@@ -127,9 +123,9 @@ def do_ban(session: dict[str, Any], champ_id: int) -> None:
 
 def extract_spell_pair(entry: Any) -> tuple[bool, int | None, bool, int | None]:
     """
-    Summoner spell çiftini farklı formatlardan çözer.
+    Resolves a summoner spell pair from various input formats.
 
-    Dönüş: (has_spell1, spell1_id, has_spell2, spell2_id)
+    Returns: (has_spell1, spell1_id, has_spell2, spell2_id)
     """
     has_s1 = False
     has_s2 = False
@@ -190,9 +186,9 @@ def get_pickable_champion_ids() -> set[int] | None:
 
 def auto_pick_impl(session: dict[str, Any], champion_ids: list[int]) -> dict[str, Any]:
     """
-    Tercih listesinden ilk uygun şampiyonu picklemeyi dener.
+    Tries to pick the first available champion from the preference list.
 
-    `champion_ids` sırası önemlidir; ilk uygun olan denenir.
+    The order of `champion_ids` matters; the first eligible champion is attempted.
     """
     valid_ids: list[int] = []
     for c in champion_ids:
@@ -260,7 +256,7 @@ def auto_pick_impl(session: dict[str, Any], champion_ids: list[int]) -> dict[str
 
 
 def get_gameflow_phase_safe() -> str | None:
-    """LCU gameflow-phase okur; hata durumunda `None` döndürür."""
+    """Reads the LCU gameflow phase; returns `None` on error."""
     try:
         res = lcu_request("GET", "/lol-gameflow/v1/gameflow-phase")
         if res.status_code != 200:
@@ -274,10 +270,7 @@ def get_gameflow_phase_safe() -> str | None:
 
 
 def ensure_lobby(queue_id: int) -> bool:
-    """
-    Ensure a lobby exists with the given queue id.
-    Returns True if a lobby exists/created successfully.
-    """
+    """Ensures a lobby with the given queue ID exists, creating one if necessary. Returns True on success."""
     try:
         res = lcu_request("GET", "/lol-lobby/v2/lobby")
         if res.status_code == 200:
@@ -310,9 +303,7 @@ def ensure_lobby(queue_id: int) -> bool:
 
 
 def ensure_matchmaking_searching() -> None:
-    """
-    Start matchmaking search if it isn't already searching.
-    """
+    """Starts matchmaking search if it is not already searching."""
     try:
         state_res = lcu_request("GET", "/lol-lobby/v2/lobby/matchmaking/search-state")
         if state_res.status_code == 200:

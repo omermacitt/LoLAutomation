@@ -1,44 +1,88 @@
 """
-Visual diagnostic: moves mouse to where we WOULD click and waits so you can see it.
-Watch the mouse cursor - does it land on the USERNAME field?
+Quick test for the Riot Client HTTP API auto-login.
+
+Usage (Riot Client must already be running and on the login screen):
+
+    python test_login.py                        # just checks lockfile + connectivity
+    python test_login.py <username> <password>  # full login attempt
 """
-import time
-import pyautogui
-from pywinauto import Desktop
 
-def get_riot_rect():
-    for w in Desktop(backend="uia").windows():
-        try:
-            if w.window_text() == "Riot Client":
-                r = w.rectangle()
-                return r.left, r.top, r.right - r.left, r.bottom - r.top
-        except Exception:
-            pass
-    return None
+import sys
+import os
 
-rect = get_riot_rect()
-if not rect:
-    print("Riot Client not found!")
-    exit(1)
+sys.path.insert(0, os.path.dirname(__file__))
 
-x, y, w, h = rect
-print(f"Window: left={x}, top={y}, w={w}, h={h}")
-print(f"Screen resolution: {pyautogui.size()}")
+from src.rune_pilot.infrastructure.riot_client import (
+    is_riot_client_running,
+    _find_riot_client_lockfile,
+    _parse_riot_client_lockfile,
+    auto_login_api,
+)
 
-# TEST DIFFERENT X POSITIONS
-# The form is on the LEFT side of the screen
-test_positions = [
-    ("Center of window (WRONG - hero image area)", x + w // 2, y + int(h * 0.35)),
-    ("9% of width (form area candidate 1)",  x + int(w * 0.09), y + int(h * 0.35)),
-    ("12% of width (form area candidate 2)", x + int(w * 0.12), y + int(h * 0.35)),
-    ("150px from left (fixed)",              x + 150, y + int(h * 0.35)),
-    ("200px from left (fixed)",              x + 200, y + int(h * 0.35)),
-]
 
-for label, px, py in test_positions:
-    print(f"\nMoving to: {label}")
-    print(f"  Absolute coords: ({px}, {py})")
-    pyautogui.moveTo(px, py, duration=0.5)
-    time.sleep(2.0)  # pause so you can see where mouse is
+def check_lockfile():
+    print("=== Lockfile check ===")
+    path = _find_riot_client_lockfile()
+    if not path:
+        print("  FAIL  Lockfile not found.")
+        print("        Make sure Riot Client is running.")
+        return False
 
-print("\nDiagnostic complete. Which position was on the USERNAME field?")
+    print(f"  OK    Found: {path}")
+    creds = _parse_riot_client_lockfile()
+    if not creds:
+        print("  FAIL  Could not parse lockfile.")
+        return False
+
+    port, pw = creds
+    print(f"  OK    port={port}  password={'*' * len(pw)}")
+    return True
+
+
+def check_connectivity(port: int, password: str):
+    print("\n=== Connectivity check ===")
+    import base64, requests, urllib3
+    urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
+    auth = base64.b64encode(f"riot:{password}".encode()).decode()
+    url = f"https://127.0.0.1:{port}/rso-auth/v1/authorization"
+    try:
+        resp = requests.get(url, headers={"Authorization": f"Basic {auth}"}, verify=False, timeout=5)
+        print(f"  OK    GET {url} -> {resp.status_code}")
+        print(f"        body: {resp.text[:200]}")
+        return True
+    except Exception as e:
+        print(f"  FAIL  {e}")
+        return False
+
+
+def do_login(username: str, password: str):
+    print(f"\n=== Login attempt: {username} ===")
+    result = auto_login_api(username, password, timeout=15)
+    t = result.get("type")
+    if t == "response":
+        print(f"  OK    Login accepted — {result.get('message', '')}")
+    elif t == "auth_failure":
+        print("  FAIL  Wrong username or password.")
+    elif t == "multifactor":
+        print("  INFO  2FA required — complete it in Riot Client manually.")
+    else:
+        print(f"  ERROR type={t!r}  message={result.get('message', '')}")
+
+
+if __name__ == "__main__":
+    print(f"Riot Client running: {is_riot_client_running()}\n")
+
+    ok = check_lockfile()
+    if ok:
+        creds = _parse_riot_client_lockfile()
+        if creds:
+            check_connectivity(creds[0], creds[1])
+
+    if len(sys.argv) == 3:
+        do_login(sys.argv[1], sys.argv[2])
+    elif len(sys.argv) == 2:
+        print("\nUsage: python test_login.py <username> <password>")
+    else:
+        print("\nTip: run with username and password to test a full login:")
+        print("     python test_login.py myusername mypassword")

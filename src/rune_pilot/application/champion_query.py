@@ -1,8 +1,4 @@
-"""
-RunePilot şampiyon sorgu servisi.
-
-LCU üzerinden şampiyon listesi ve bilgisi sorgulama.
-"""
+"""RunePilot champion query service — LCU champion list and info lookups."""
 
 from __future__ import annotations
 
@@ -11,13 +7,13 @@ from typing import Any
 from src.rune_pilot.infrastructure.lcu_client import lcu_request
 from src.rune_pilot.domain.champion_service import normalize_champion_id, champion_slug_from_alias
 
-# Cache'ler: LCU'dan okunan veriler burada tutulur.
+# In-process caches populated from LCU data.
 CHAMP_SLUG_BY_ID: dict[int, str] = {}
 CHAMP_NAME_BY_ID: dict[int, str] = {}
 
 
 def get_champion_slug_by_id(champ_id: int) -> str | None:
-    """LCU verisinden champ_id için runes.json slug'ını çözer (cache'li)."""
+    """Resolves the runes.json slug for a champion ID from LCU data (cached)."""
     if champ_id in CHAMP_SLUG_BY_ID:
         return CHAMP_SLUG_BY_ID[champ_id]
 
@@ -53,7 +49,7 @@ def get_champion_slug_by_id(champ_id: int) -> str | None:
 
 
 def get_champion_name_by_id(champ_id: int) -> str | None:
-    """LCU verisinden champ_id için görünen şampiyon adını döndürür (cache'li)."""
+    """Returns the display name for a champion ID from LCU data (cached)."""
     if champ_id in CHAMP_NAME_BY_ID:
         return CHAMP_NAME_BY_ID[champ_id]
     get_champion_slug_by_id(champ_id)
@@ -61,7 +57,7 @@ def get_champion_name_by_id(champ_id: int) -> str | None:
 
 
 def get_champion_summary() -> list[dict[str, Any]]:
-    """LCU'dan tüm şampiyonları döndürür (ban comboları için)."""
+    """Returns all champions from the LCU (used for ban dropdowns)."""
     try:
         res = lcu_request("GET", "/lol-game-data/assets/v1/champion-summary.json")
         if res.status_code != 200:
@@ -73,7 +69,7 @@ def get_champion_summary() -> list[dict[str, Any]]:
 
 
 def get_owned_champions_raw() -> list[dict[str, Any]]:
-    """LCU'dan sahip olunan şampiyonların ham listesini döndürür."""
+    """Returns the raw list of owned champions from the LCU."""
     try:
         res = lcu_request("GET", "/lol-champions/v1/owned-champions-minimal")
         if res.status_code != 200:
@@ -86,9 +82,9 @@ def get_owned_champions_raw() -> list[dict[str, Any]]:
 
 def load_champions_map() -> dict[int, dict[str, Any]]:
     """
-    LCU üzerinden oyuncunun sahip olduğu şampiyonları okur.
+    Reads the player's owned champions from the LCU.
 
-    Dönüş formatı: `{championId: {"id": int, "name": str, "alias": str}}`
+    Return format: `{championId: {"id": int, "name": str, "alias": str}}`
     """
     try:
         res = lcu_request("GET", "/lol-champions/v1/owned-champions-minimal")
@@ -125,7 +121,7 @@ def load_champions_map() -> dict[int, dict[str, Any]]:
 
 
 def get_champions() -> list[dict[str, Any]]:
-    """UI için sahip olunan şampiyon listesini döndürür."""
+    """Returns the owned champion list for the UI."""
     champs_map = load_champions_map()
     if not champs_map:
         return []

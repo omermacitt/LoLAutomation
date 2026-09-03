@@ -1,6 +1,4 @@
-"""
-Hesap yönetimi uygulama servisi.
-"""
+"""Account management application service."""
 
 import json
 import os
@@ -9,7 +7,7 @@ from typing import List, Optional
 
 from src.rune_pilot.domain.account_model import Account
 from src.rune_pilot.infrastructure.crypto import encrypt_password, decrypt_password
-from src.rune_pilot.infrastructure.riot_client import RiotClientAPI, launch_riot_client
+from src.rune_pilot.infrastructure.riot_client import auto_login_api, auto_login_ui, launch_riot_client
 
 class AccountService:
     def __init__(self, config_file: str):
@@ -18,20 +16,20 @@ class AccountService:
         self._load_accounts()
 
     def _load_accounts(self) -> None:
-        """Config dosyasından hesapları okur."""
+        """Loads accounts from the config file."""
         if not os.path.exists(self.config_file):
             return
-            
+
         try:
             with open(self.config_file, "r", encoding="utf-8") as f:
                 data = json.load(f)
                 accounts_data = data.get("accounts", [])
                 self.accounts = [Account(**acc) for acc in accounts_data]
         except Exception as e:
-            print(f"Hesaplar yuklenirken hata: {e}")
+            print(f"Error loading accounts: {e}")
 
     def _save_accounts(self) -> None:
-        """Hesapları config dosyasına geri yazar."""
+        """Writes accounts back to the config file."""
         data = {}
         if os.path.exists(self.config_file):
             try:
@@ -47,13 +45,13 @@ class AccountService:
             with open(self.config_file, "w", encoding="utf-8") as f:
                 json.dump(data, f, indent=4)
         except Exception as e:
-            print(f"Hesaplar kaydedilirken hata: {e}")
+            print(f"Error saving accounts: {e}")
 
     def get_accounts(self) -> List[Account]:
         return self.accounts
 
     def add_account(self, username: str, password: str, game_name: str = None, tag_line: str = None) -> Account:
-        """Yeni bir hesap ekler."""
+        """Adds a new account."""
         encrypted_pw = encrypt_password(password)
         acc = Account(
             id=str(uuid.uuid4()),
@@ -67,11 +65,11 @@ class AccountService:
         return acc
         
     def update_account(self, acc_id: str, username: str, password: str = None, game_name: str = None, tag_line: str = None) -> bool:
-        """Mevcut bir hesabı günceller."""
+        """Updates an existing account."""
         for acc in self.accounts:
             if acc.id == acc_id:
                 acc.username = username
-                if password:  # Sadece yeni parola verildiyse güncelleyelim.
+                if password:  # Only update the password if a new one is provided.
                     acc.encrypted_password = encrypt_password(password)
                 acc.game_name = game_name
                 acc.tag_line = tag_line
@@ -80,7 +78,7 @@ class AccountService:
         return False
 
     def delete_account(self, acc_id: str) -> bool:
-        """Hesabı siler."""
+        """Deletes an account."""
         initial_len = len(self.accounts)
         self.accounts = [acc for acc in self.accounts if acc.id != acc_id]
         if len(self.accounts) < initial_len:
@@ -89,31 +87,32 @@ class AccountService:
         return False
 
     def auto_login(self, acc_id: str) -> dict:
-        """
-        Giriş işlemlerini (Auto-Login) başlatır.
-        Önce istemci açık mı bakar, değilse başlatır. Sonra HTTP PUT isteği gönderir.
-        """
+        """Initiates the auto-login flow for the given account via the Riot Client HTTP API."""
         acc = next((a for a in self.accounts if a.id == acc_id), None)
         if not acc:
-            return {"type": "error", "message": "Hesap bulunamadı."}
-            
+            return {"type": "error", "message": "Account not found."}
+
         password = decrypt_password(acc.encrypted_password)
         if not password:
-            return {"type": "error", "message": "Parola çözülemedi. Lütfen hesabı güncelleyin."}
+            return {"type": "error", "message": "Could not decrypt password. Please update the account."}
 
-        client = RiotClientAPI()
-        
-        # Eğer açık değilse başlat:
-        if not client.is_running():
-            print("Riot Client kapalı, başlatılıyor...")
-            if not launch_riot_client():
-                return {"type": "error", "message": "Riot Client başlatılamadı."}
-                
-        # UX sürecinin başlamasını bekle
-        if not client.wait_for_client(timeout=15):
-            return {"type": "error", "message": "Riot Client API'ye bağlanılamadı (Timeout)."}
-            
-        print("Riot Client'a giriş yapılıyor...")
-        # Artık API üzerinden credentials gönderilebilir
-        response = client.auto_login(acc.username, password, persist_login=True)
-        return response
+        result = auto_login_api(acc.username, password)
+        if result.get("type") == "response":
+            launch_riot_client()
+            return result
+
+        if result.get("type") == "captcha":
+            # API blocked by captcha — pre-fill the Riot Client login form via UI automation.
+            # User still needs to solve the captcha manually in the Riot Client window.
+            ui_result = auto_login_ui(acc.username, password)
+            if ui_result.get("success"):
+                return {
+                    "type": "captcha_ui",
+                    "message": (
+                        "Your credentials have been entered in Riot Client.\n"
+                        "If a captcha appeared, please solve it, then click 'Continue Without Login'.\n"
+                        "If you are already logged in, just click 'Continue Without Login'."
+                    ),
+                }
+
+        return result

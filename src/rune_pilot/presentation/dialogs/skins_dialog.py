@@ -1,9 +1,4 @@
-"""
-RunePilot kostüm (skin) seçim penceresi (PyQt6).
-
-Kullanıcıya seçili şampiyon için sahip olduğu kostümleri listeler ve seçilen
-`skinId` değerini döndürür.
-"""
+"""RunePilot skin selection dialog (PyQt6) — lists owned skins and returns the selected skin ID."""
 
 from __future__ import annotations
 
@@ -31,13 +26,13 @@ class SkinSelectDialog(QDialog):
 
         self._selected_skin_id: int | None = selected_skin_id
 
-        self.setWindowTitle("Kostüm Seç")
+        self.setWindowTitle("Select Skin")
         self.setModal(True)
         self.resize(420, 140)
 
         layout = QVBoxLayout(self)
 
-        title = QLabel(f"Şampiyon: {champion_name}")
+        title = QLabel(f"Champion: {champion_name}")
         title.setAlignment(Qt.AlignmentFlag.AlignLeft)
         layout.addWidget(title)
 
@@ -55,11 +50,11 @@ class SkinSelectDialog(QDialog):
         buttons = QHBoxLayout()
         buttons.addStretch(1)
 
-        cancel_btn = QPushButton("İptal")
+        cancel_btn = QPushButton("Cancel")
         cancel_btn.clicked.connect(self.reject)
         buttons.addWidget(cancel_btn)
 
-        ok_btn = QPushButton("Kaydet")
+        ok_btn = QPushButton("Save")
         ok_btn.clicked.connect(self.accept)
         ok_btn.setDefault(True)
         buttons.addWidget(ok_btn)

@@ -1,8 +1,4 @@
-"""
-Aranabilir QComboBox widget'ı.
-
-QComboBox'a type-ahead (yaz-ara) davranışı ekleyen yardımcı sınıf ve fonksiyon.
-"""
+"""Searchable QComboBox widget — adds type-ahead behaviour to a QComboBox."""
 
 from PyQt6.QtCore import Qt, QTimer, QObject, QEvent
 from PyQt6.QtWidgets import QComboBox, QCompleter
@@ -57,8 +53,8 @@ class _SearchableComboLineEditFilter(QObject):
         return False
 
 
-def make_combo_searchable(combo: QComboBox, *, placeholder: str = "Ara...") -> None:
-    """QComboBox'a yaz-ara (type-ahead) davranışı ekler."""
+def make_combo_searchable(combo: QComboBox, *, placeholder: str = "Search...") -> None:
+    """Adds type-ahead search behaviour to a QComboBox."""
     combo.setEditable(True)
     combo.setInsertPolicy(QComboBox.InsertPolicy.NoInsert)
     combo.setMaxVisibleItems(20)

@@ -1,8 +1,4 @@
-"""
-RunePilot veri modelleri.
-
-Pydantic tabanlı otomasyon konfigürasyon modeli.
-"""
+"""RunePilot data models — Pydantic-based automation configuration."""
 
 from __future__ import annotations
 
@@ -11,7 +7,7 @@ from typing import Any
 
 
 class AutomationConfig(BaseModel):
-    """Masaüstü uygulamasından (GUI) gelen otomasyon ayarları."""
+    """Automation settings received from the GUI."""
 
     primary_role: str | None = None
     secondary_role: str | None = None
