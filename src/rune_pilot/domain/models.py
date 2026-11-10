@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
-from pydantic import BaseModel, Field
-from typing import Any
+from pydantic import BaseModel, Field, field_validator
+
+from rune_pilot.domain.champion_service import ensure_unique_role_champions
 
 
 class AutomationConfig(BaseModel):
@@ -26,3 +27,9 @@ class AutomationConfig(BaseModel):
     # role -> champId(str) -> skinId(int)
     custom_skins: dict[str, dict[str, int]] = Field(default_factory=dict)
     auto_queue: bool = True
+
+    @field_validator("role_champions")
+    @classmethod
+    def unique_choices_per_role(cls, value: dict[str, list[int]]) -> dict[str, list[int]]:
+        ensure_unique_role_champions(value)
+        return value

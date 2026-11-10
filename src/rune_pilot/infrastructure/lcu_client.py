@@ -81,4 +81,5 @@ def lcu_request(method: str, endpoint: str, json_body: Any | None = None) -> req
         json=json_body,
         auth=("riot", password),
         verify=False,
+        timeout=2.0,
     )

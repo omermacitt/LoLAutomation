@@ -30,7 +30,21 @@ ValorantProject/
 _delete_test.txt
 LoLAutomation.spec
 
+# Packaging / test caches
+*.egg-info/
+.pytest_cache/
+
 # PyInstaller
 build/
 dist/
 *.spec.bak
+
+# React frontend
+node_modules/
+*.tsbuildinfo
+frontend/coverage/
+frontend/test-results/
+frontend/test-results-ux-accounts/
+frontend/test-results-ux-accounts-final/
+frontend/test-results-ux-removal/
+frontend/playwright-report/

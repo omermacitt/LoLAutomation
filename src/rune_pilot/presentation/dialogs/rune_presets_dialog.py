@@ -15,6 +15,8 @@ from PyQt6.QtWidgets import (
 )
 
 from rune_pilot.presentation.dialogs.runes_dialog import RunePageDialog
+from rune_pilot.presentation.api_client import ApiClient
+from rune_pilot.presentation.controllers.rune_data_controller import RuneDataController
 
 
 class RunePresetsDialog(QDialog):
@@ -28,8 +30,10 @@ class RunePresetsDialog(QDialog):
         on_save_preset: Callable[[int, dict], None],
         on_delete_preset: Callable[[int], None],
         parent=None,
+        api_client: ApiClient | None = None,
     ) -> None:
         super().__init__(parent)
+        self.rune_data = RuneDataController(api_client, self)
 
         self._champion_id = int(champion_id)
         self._champion_name = str(champion_name)
@@ -76,6 +80,7 @@ class RunePresetsDialog(QDialog):
                 existing_page=page if isinstance(page, dict) else None,
                 parent=self,
                 show_buttons=False,
+                rune_data=self.rune_data,
             )
             self._editors[slot] = editor
             self.stack.addWidget(editor)
@@ -89,6 +94,8 @@ class RunePresetsDialog(QDialog):
         actions.addWidget(self.delete_btn)
 
         self.save_btn = QPushButton("Save")
+        self.save_btn.setEnabled(self.rune_data.catalog is not None)
+        self.rune_data.loaded.connect(lambda _catalog: self.save_btn.setEnabled(True))
         self.save_btn.clicked.connect(self._save_current)
         actions.addWidget(self.save_btn)
 
@@ -101,6 +108,10 @@ class RunePresetsDialog(QDialog):
         if initial_slot not in (1, 2, 3):
             initial_slot = 1
         self._set_slot(initial_slot)
+
+    def done(self, result: int) -> None:
+        self.rune_data.shutdown()
+        super().done(result)
 
     def _current_slot(self) -> int:
         return int(self.stack.currentIndex()) + 1

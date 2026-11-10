@@ -1,0 +1,48 @@
+.skin-context { display:flex; align-items:center; gap:16px; padding:17px 20px; margin-bottom:22px; background:linear-gradient(115deg,#272032,#191620); border:1px solid #3a3047; border-radius:10px; }
+.skin-context label { display:grid; gap:7px; width:190px; }
+.skin-context label > span { color:#b4a1c5; font-size:9px; }
+.skin-context .champion-art--small { width:46px; height:49px; }
+.skin-context__note { margin-left:auto; display:flex; align-items:center; gap:9px; color:#ac99bd; font-size:10px; max-width:245px; line-height:1.8; }
+.skin-context__note svg { width:20px; flex-shrink:0; }
+.skin-artwork { display:block; width:100%; height:100%; overflow:hidden; background:radial-gradient(ellipse at 65% 20%,#49335d,#191520 75%); }
+.skin-artwork > img { width:100%; height:100%; object-fit:cover; object-position:50% 35%; transition:transform .35s; }
+.skin-artwork__fallback { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:15px; width:100%; height:100%; padding:20px; background:radial-gradient(ellipse at 50% 40%,#52375860,transparent); }
+.skin-artwork__fallback > .champion-art { width:70px; height:70px; border:1px solid #80638b; border-radius:12px; opacity:.75; }
+.skin-artwork__fallback > span:last-child { display:flex; align-items:center; gap:8px; color:#b9a5c7; font-size:10px; }
+.skin-hero { position:relative; height:310px; border:1px solid #614772; border-radius:13px; overflow:hidden; background:linear-gradient(110deg,#302139,#15121b); margin-bottom:29px; }
+.skin-hero > .skin-artwork { position:absolute; inset:0; }
+.skin-hero > .skin-artwork > img { object-position:65% 30%; }
+.skin-hero__shade { position:absolute; inset:0; background:linear-gradient(90deg,#15101bec 0%,#1912219c 34%,#17101b10 78%),linear-gradient(0deg,#160f20c9,transparent 65%); pointer-events:none; }
+.skin-hero__content { position:absolute; inset:0; display:flex; flex-direction:column; align-items:flex-start; justify-content:flex-end; padding:32px 34px; }
+.skin-hero__label { display:flex; align-items:center; gap:7px; color:#dac195; font-size:9px; letter-spacing:1.9px; }
+.skin-hero h2 { font-size:30px; font-weight:600; line-height:1.25; margin:13px 0; max-width:65%; text-shadow:0 2px 12px #10091b; }
+.skin-hero p { display:flex; gap:9px; align-items:center; color:#d0bbdf; font-size:11px; }
+.skin-hero p > svg { width:15px; }
+.skin-hero__status { display:flex; align-items:center; gap:6px; border:1px solid #c9b39450; border-radius:20px; padding:7px 11px; background:#16111b8c; color:#d6c4ac; font-size:9px; margin-top:18px; }
+.skin-collection-header { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:20px; }
+.skin-collection-header h3 { display:flex; align-items:center; gap:10px; font-size:18px; font-weight:500; margin-top:9px; }
+.skin-collection-header h3 > span { color:#cab0db; background:#34283f; border:1px solid #503a60; border-radius:5px; font-size:10px; padding:3px 6px; }
+.skin-collection-tools { display:flex; align-items:center; justify-content:space-between; gap:16px; margin-bottom:18px; }
+.skin-collection-tools .search-field { width:290px; }
+.skin-collection-tools > span { font-size:10px; color:#a694b5; }
+.skin-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:18px; }
+.skin-card { border:1px solid #3e304a; background:#1b1722; border-radius:10px; overflow:hidden; min-width:0; text-align:left; transition:border-color .2s,transform .2s,box-shadow .2s; }
+.skin-card:hover:not(:disabled) { border-color:#aa88c5; transform:translateY(-3px); box-shadow:0 9px 22px #0003; }
+.skin-card--selected { border-color:#bda0d2; box-shadow:0 0 0 1px #a585bd55; background:#30233b; }
+.skin-card:focus-visible { outline:2px solid #d3b8ed; outline-offset:4px; }
+.skin-card__image { position:relative; aspect-ratio:16/10; border-bottom:1px solid #45304f; overflow:hidden; }
+.skin-card:hover:not(:disabled) .skin-artwork > img { transform:scale(1.04); }
+.skin-card__badge { position:absolute; top:11px; left:11px; border:1px solid #9d85af55; background:#17111ee8; color:#ddd0e9; border-radius:4px; padding:5px 7px; font-size:7px; letter-spacing:.8px; }
+.skin-card__check { position:absolute; bottom:11px; right:11px; width:27px; height:27px; border-radius:50%; display:grid; place-items:center; background:#c6a6e0; color:#281735; box-shadow:0 2px 9px #0005; }
+.skin-card__details { padding:17px; display:grid; gap:7px; }
+.skin-card__details > span { font-size:9px; color:#ac95bc; }
+.skin-card__details strong { font-size:13px; color:#e4d3f1; font-weight:500; line-height:1.5; }
+.skin-card__details small { display:flex; justify-content:space-between; align-items:center; font-size:9px; color:#aa91bc; margin-top:6px; }
+.skin-card--selected .skin-card__details small { color:#d8bdeb; }
+.skin-save-note,.skin-owned-note { font-size:11px; line-height:1.9; color:#ad9abd; margin:20px 0 7px; }
+.skin-owned-note { margin:0 0 18px; padding:13px 16px; border-left:2px solid #83649c; background:#282030; }
+.skin-empty { min-height:260px; display:flex; flex-direction:column; justify-content:center; align-items:center; text-align:center; gap:15px; padding:30px; border:1px solid #3b2c47; background:#1b1722; border-radius:10px; color:#b6a0c6; }
+.skin-empty h3 { font-size:16px; color:#e0caed; }.skin-empty p { font-size:12px; line-height:1.8; }
+@media (max-width:1200px) { .skin-context__note { display:none; }.skin-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }.skin-hero { height:290px; } }
+@media (max-width:760px) { .skin-context { flex-wrap:wrap; gap:12px; padding:14px; }.skin-context label { flex:1; width:auto; min-width:115px; }.skin-context .champion-art--small { width:37px; height:42px; }.skin-hero { height:270px; }.skin-hero__content { padding:23px; }.skin-hero h2 { font-size:25px; max-width:100%; }.skin-hero__shade { background:linear-gradient(0deg,#160e21f5,#160e2130); }.skin-collection-tools { align-items:flex-start; flex-direction:column; gap:10px; }.skin-collection-tools .search-field { width:100%; }.skin-grid { gap:13px; }.skin-card__details { padding:13px; }.skin-card__details strong { font-size:12px; }.skin-collection-header h3 { font-size:16px; } }
+@media (max-width:480px) { .skin-context .champion-art--small { display:none; }.skin-hero { height:265px; }.skin-grid { grid-template-columns:1fr; gap:18px; }.skin-card__image { aspect-ratio:16/9; }.skin-card__details strong { font-size:14px; }.skin-collection-header .button { font-size:10px; padding:9px; }.skin-context label { min-width:0; }.skin-context select { width:100%; min-width:0; }.skin-hero h2 { font-size:24px; } }

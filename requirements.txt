@@ -4,8 +4,3 @@ pydantic
 requests
 PyQt6
 win10toast
-cryptography
-psutil
-pyautogui
-pyperclip
-pywinauto

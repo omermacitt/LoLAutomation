@@ -1,32 +1,32 @@
-"""RunePilot rune data provider — reads runes.json and exposes rune data."""
-
-from __future__ import annotations
+"""Lazy, instance-owned recommendation data loaded from the bundled JSON file."""
 
 import json
 import os
+import threading
+from copy import deepcopy
 from typing import Any
 
 from rune_pilot.shared.resource import resource_path
 
-RUNES_FILE = resource_path("runes.json")
 
-_RUNES_DATA: dict[str, Any] | None = None
+class JsonRuneData:
+    def __init__(self, path: str | None = None):
+        self.path = path if path is not None else resource_path("runes.json")
+        self._data: dict[str, Any] | None = None
+        self._lock = threading.Lock()
 
+    def get_runes_data(self) -> dict[str, Any]:
+        with self._lock:
+            if self._data is None:
+                self._data = self._load()
+            return deepcopy(self._data)
 
-def load_runes() -> dict[str, Any]:
-    """Reads `runes.json`; returns an empty dict on error."""
-    if not os.path.exists(RUNES_FILE):
-        return {}
-    try:
-        with open(RUNES_FILE, "r", encoding="utf-8") as f:
-            return json.load(f)
-    except Exception:
-        return {}
-
-
-def get_runes_data() -> dict[str, Any]:
-    """Returns the rune data, loading it on first call."""
-    global _RUNES_DATA
-    if _RUNES_DATA is None:
-        _RUNES_DATA = load_runes()
-    return _RUNES_DATA
+    def _load(self) -> dict[str, Any]:
+        if not os.path.exists(self.path):
+            return {}
+        try:
+            with open(self.path, encoding="utf-8") as source:
+                data = json.load(source)
+            return data if isinstance(data, dict) else {}
+        except (OSError, ValueError):
+            return {}

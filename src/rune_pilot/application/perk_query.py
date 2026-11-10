@@ -1,63 +1,52 @@
-"""RunePilot perk query service — LCU rune style/perk data and icon lookups."""
+"""Perk metadata queries with instance-owned, lock-guarded caches."""
 
-from __future__ import annotations
-
+import threading
 from typing import Any
 
-from rune_pilot.infrastructure.lcu_client import lcu_request
-
-_PERK_STYLES_CACHE: list[dict[str, Any]] | None = None
-_PERKS_CACHE: list[dict[str, Any]] | None = None
+from rune_pilot.application.ports.league_client import LeagueClient
 
 
-def get_perk_styles() -> list[dict[str, Any]]:
-    """Reads the rune style list from the LCU (cached per process)."""
-    global _PERK_STYLES_CACHE
-    if _PERK_STYLES_CACHE is not None:
-        return _PERK_STYLES_CACHE
-    res = lcu_request("GET", "/lol-perks/v1/styles")
-    res.raise_for_status()
-    data = res.json()
-    if not isinstance(data, list):
-        raise ValueError("Unexpected response from /lol-perks/v1/styles")
-    _PERK_STYLES_CACHE = data
-    return data
+class PerkQuery:
+    def __init__(self, client: LeagueClient):
+        self._client = client
+        self._lock = threading.RLock()
+        self._styles: list[dict[str, Any]] | None = None
+        self._perks: list[dict[str, Any]] | None = None
 
+    def get_perk_styles(self) -> list[dict[str, Any]]:
+        with self._lock:
+            if self._styles is None:
+                response = self._client.perk_styles()
+                response.raise_for_status()
+                data = response.json()
+                if not isinstance(data, list):
+                    raise ValueError("Unexpected rune styles")
+                self._styles = data
+            return self._styles
 
-def get_perks() -> list[dict[str, Any]]:
-    """Reads the perk list from the LCU, with fallback endpoints (cached)."""
-    global _PERKS_CACHE
-    if _PERKS_CACHE is not None:
-        return _PERKS_CACHE
-    endpoints = (
-        "/lol-perks/v1/perks",
-        "/lol-game-data/assets/v1/perks.json",
-    )
-    last_error: Exception | None = None
-    for endpoint in endpoints:
+    def get_perks(self) -> list[dict[str, Any]]:
+        with self._lock:
+            if self._perks is not None:
+                return self._perks
+            last_error: Exception | None = None
+            for game_data in (False, True):
+                try:
+                    response = self._client.perks(game_data=game_data)
+                    response.raise_for_status()
+                    data = response.json()
+                    if isinstance(data, dict):
+                        data = data.get("perks")
+                    if isinstance(data, list):
+                        self._perks = data
+                        return data
+                    last_error = ValueError("Unexpected perk data")
+                except Exception as e:
+                    last_error = e
+            raise ValueError("Could not fetch perks") from last_error
+
+    def get_perk_icon_bytes(self, asset_path: str) -> bytes | None:
         try:
-            res = lcu_request("GET", endpoint)
-            res.raise_for_status()
-            data = res.json()
-            if isinstance(data, list):
-                _PERKS_CACHE = data
-                return data
-            if isinstance(data, dict) and isinstance(data.get("perks"), list):
-                _PERKS_CACHE = data["perks"]
-                return data["perks"]
-            last_error = ValueError(f"Unexpected response from {endpoint}")
-        except Exception as e:
-            last_error = e
-            continue
-    raise ValueError("Could not fetch perks") from last_error
-
-
-def get_perk_icon_bytes(asset_path: str) -> bytes | None:
-    """Returns the icon bytes for a given LCU asset path."""
-    try:
-        res = lcu_request("GET", asset_path)
-        if res.status_code != 200:
+            response = self._client.asset(asset_path)
+            return response.content if response.status_code == 200 else None
+        except Exception:
             return None
-        return res.content
-    except Exception:
-        return None

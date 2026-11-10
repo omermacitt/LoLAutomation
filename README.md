@@ -13,7 +13,6 @@ The application runs a **FastAPI** HTTP server in a background thread and a **Py
 - Up to 3 custom rune presets per champion, selectable per champion slot
 - Per-champion summoner spell configuration
 - Skin selection (owned skins only)
-- Multi-account manager with encrypted password storage and auto-login via Riot Client
 - Auto-queue accept
 - System tray support — minimizes to tray, toast notifications on game start
 - Auto-update via GitHub Releases (optional)
@@ -89,6 +88,8 @@ Output: `dist\installer\RunePilotSetup-<version>.exe`
 
 Your settings are saved automatically and restored on the next launch.
 
+Account management, password storage and automatic sign-in were removed on 10 November 2026. Old account records are removed from known current/legacy profile files and staged saves on backend startup, while game settings are retained. The removed account/login/launch API routes return 404.
+
 ---
 
 ## Configuration
@@ -134,8 +135,7 @@ application/ (use cases)
       |            |
       v            v
 infrastructure/  domain/
-(LCU, Riot,     (models,
- crypto, scraper) constants)
+(LCU, scraper)  (models, constants)
 
 shared/ (used by all layers)
 ```

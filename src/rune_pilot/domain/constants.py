@@ -41,3 +41,6 @@ SUMMONER_SPELLS: dict[str, int | None] = {
 }
 
 SPELL_NAME_BY_ID: dict[int, str] = {v: k for k, v in SUMMONER_SPELLS.items() if v is not None}
+
+# The five role keys the LCU uses. Derived from ROLES so the two cannot drift apart.
+ROLE_KEYS: frozenset[str] = frozenset(v for v in ROLES.values() if v is not None)

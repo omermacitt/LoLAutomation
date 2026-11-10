@@ -38,7 +38,7 @@ def format_exception(e: Exception) -> str:
     """Formats an exception with its full traceback as a string."""
     return "".join(traceback.format_exception(type(e), e, e.__traceback__)).strip()
 
-def start_server() -> None:
+def start_server(stop_signal: threading.Event | None = None) -> None:
     """Starts the FastAPI service via uvicorn (runs inside a background thread)."""
     try:
         import uvicorn
@@ -55,17 +55,31 @@ def start_server() -> None:
                     "formatter": "simple",
                     "stream": "ext://sys.stderr",
                 },
+                "rune_file": {
+                    "class": "logging.FileHandler",
+                    "filename": get_log_path(), "encoding": "utf-8",
+                    "formatter": "simple",
+                },
             },
             "loggers": {
                 "uvicorn": {"handlers": ["default"], "level": "INFO"},
                 "uvicorn.error": {"handlers": ["default"], "level": "INFO", "propagate": False},
                 "uvicorn.access": {"handlers": ["default"], "level": "WARNING", "propagate": False},
+                "rune_pilot": {"handlers": ["rune_file"], "level": "INFO", "propagate": False},
             },
         }
         from rune_pilot.composition.api_app import create_app
         app = create_app()
 
-        uvicorn.run(app, host="127.0.0.1", port=8000, log_level="info", log_config=log_config)
+        server = uvicorn.Server(uvicorn.Config(
+            app, host="127.0.0.1", port=8000, log_level="info", log_config=log_config,
+        ))
+        if stop_signal is not None:
+            def wait_for_close() -> None:
+                stop_signal.wait()
+                server.should_exit = True
+            threading.Thread(target=wait_for_close, daemon=True).start()
+        server.run()
     except Exception as e:
         log_line(f"[RUN_APP] Failed to start API: {e}")
         log_line(format_exception(e))
@@ -73,19 +87,12 @@ def start_server() -> None:
 if __name__ == "__main__":
     log_line(f"[RUN_APP] Starting {APP_DISPLAY_NAME}")
 
+    server_stop = threading.Event()
+    server_thread = None
     try:
         # Start API in a separate thread
-        server_thread = threading.Thread(target=start_server, daemon=True)
+        server_thread = threading.Thread(target=start_server, args=(server_stop,), daemon=True)
         server_thread.start()
-
-        # Auto-launch Riot Client if it isn't already running
-        try:
-            from rune_pilot.infrastructure.riot_client import is_riot_client_running, launch_riot_client
-            if not is_riot_client_running():
-                log_line("[RUN_APP] Riot Client not running — launching automatically...")
-                launch_riot_client()
-        except Exception as e:
-            log_line(f"[RUN_APP] Could not auto-launch Riot Client: {e}")
 
         # Run the GUI in the main thread
         from rune_pilot.presentation.main_window import main as start_gui
@@ -95,3 +102,9 @@ if __name__ == "__main__":
         log_line(f"[RUN_APP] Fatal error: {e}")
         log_line(format_exception(e))
         raise
+    finally:
+        server_stop.set()
+        if server_thread is not None:
+            server_thread.join(timeout=15.0)
+            if server_thread.is_alive():
+                log_line("[RUN_APP] Backend did not finish shutdown within 15 seconds")

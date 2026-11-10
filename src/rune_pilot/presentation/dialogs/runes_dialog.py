@@ -1,7 +1,7 @@
 """
 Özel rün sayfası düzenleme diyaloğu (PyQt6).
 
-League Client (LCU) üzerinden rune style/perk verisini çekip kullanıcıya seçim
+Backend üzerinden rune style/perk verisini yükleyip kullanıcıya seçim
 arayüzü sunar ve seçilen rünleri API'ye gönderilebilecek formatta üretir.
 """
 
@@ -21,11 +21,14 @@ from PyQt6.QtWidgets import (
     QLabel,
     QLineEdit,
     QMessageBox,
+    QPushButton,
     QVBoxLayout,
     QWidget,
 )
 
-from rune_pilot.application.perk_query import get_perk_styles, get_perks, get_perk_icon_bytes
+from rune_pilot.domain.game_data import RuneCatalog
+from rune_pilot.presentation.api_client import ApiClient
+from rune_pilot.presentation.controllers.rune_data_controller import RuneDataController
 
 MAIN_STYLE_IDS: set[int] = {8000, 8100, 8200, 8300, 8400}
 STAT_MODS_STYLE_ID = 5000
@@ -83,30 +86,6 @@ def _get_slot_runes(slot: Any) -> list[Any]:
     return runes if isinstance(runes, list) else []
 
 
-def _fetch_perk_styles() -> list[dict[str, Any]]:
-    """LCU üzerinden rune style listesini okur."""
-    return get_perk_styles()
-
-
-def _fetch_perks() -> list[dict[str, Any]]:
-    """LCU üzerinden perk listesini okur (farklı endpoint'lere fallback)."""
-    return get_perks()
-
-
-def _normalize_asset_path(icon_path: str | None) -> str | None:
-    """LCU ikon yolunu normalize eder; remote URL'leri devre dışı bırakır."""
-    if not icon_path:
-        return None
-    path = str(icon_path).strip()
-    if not path:
-        return None
-    if path.startswith("http://") or path.startswith("https://"):
-        return None
-    if path.startswith("/"):
-        return path
-    return "/lol-game-data/assets/v1/" + path.lstrip("/")
-
-
 def _get_style_slots(style: dict[str, Any]) -> list[Any]:
     """Style objesinden slot listesini güvenli şekilde okur."""
     slots = style.get("slots")
@@ -126,16 +105,22 @@ class RunePageDialog(QDialog):
         existing_page: dict[str, Any] | None = None,
         show_buttons: bool = True,
         parent: QWidget | None = None,
+        api_client: ApiClient | None = None,
+        rune_data: RuneDataController | None = None,
     ):
         super().__init__(parent)
         self._show_buttons = bool(show_buttons)
+        self._owns_data = rune_data is None
+        self.rune_data = rune_data if rune_data is not None else RuneDataController(api_client, self)
+        self._data_ready = False
+        self._existing_page = existing_page
+        self._fallback_name = f"Custom-{champion_name}"
         self.setWindowTitle(f"Custom Runes - {champion_name}")
         self.setMinimumWidth(520)
 
         self.action: str = "save"  # "save" | "delete"
         self._styles: dict[int, dict[str, Any]] = {}
         self._perk_names: dict[int, str] = {}
-        self._perk_icon_paths: dict[int, str] = {}
         self._perk_icons: dict[int, QIcon | None] = {}
         self._secondary_last_changed: int | None = None
 
@@ -148,48 +133,80 @@ class RunePageDialog(QDialog):
         self.shard_combos: list[QComboBox] = [QComboBox() for _ in range(3)]
 
         self.summary_label = QLabel("")
-
-        try:
-            styles_list = _fetch_perk_styles()
-            self._styles = {
-                int(s["id"]): s for s in styles_list if isinstance(s, dict) and _safe_int(s.get("id")) is not None
-            }
-        except Exception as e:
-            QMessageBox.critical(self, "Error", f"Could not load rune styles from League Client:\n{e}")
-            self._styles = {}
-
-        try:
-            perks_list = _fetch_perks()
-            self._perk_names = {
-                int(p["id"]): str(p.get("name") or p.get("displayName") or p["id"])
-                for p in perks_list
-                if isinstance(p, dict) and _safe_int(p.get("id")) is not None
-            }
-            self._perk_icon_paths = {
-                int(p["id"]): str(p.get("iconPath") or p.get("icon_path") or "")
-                for p in perks_list
-                if isinstance(p, dict) and _safe_int(p.get("id")) is not None
-            }
-        except Exception:
-            self._perk_names = {}
-            self._perk_icon_paths = {}
+        self.load_status = QLabel("Loading rune data…")
+        self.retry_button = QPushButton("Retry")
+        self.retry_button.hide()
+        self.retry_button.clicked.connect(self._retry_load)
 
         for cb in self.primary_rune_combos + self.secondary_rune_combos + self.shard_combos:
             cb.setIconSize(DEFAULT_ICON_SIZE)
 
         self._build_ui()
         self._wire_signals()
-        self._populate_style_combos()
-
-        if existing_page:
-            self._apply_existing_page(existing_page, fallback_name=f"Custom-{champion_name}")
+        self._set_editor_enabled(False)
+        self.rune_data.loaded.connect(self._on_catalog_loaded)
+        self.rune_data.failed.connect(self._on_data_failed)
+        self.rune_data.icon_loaded.connect(self._on_icon_loaded)
+        if self.rune_data.catalog is not None:
+            self._on_catalog_loaded(self.rune_data.catalog)
         else:
-            self.name_edit.setText(f"Custom-{champion_name}")
+            self.name_edit.setText(self._fallback_name)
+            self.rune_data.load()
 
+    def _on_catalog_loaded(self, catalog: RuneCatalog) -> None:
+        self._styles = {int(s["id"]): s for s in catalog.styles if _safe_int(s.get("id")) is not None}
+        self._perk_names = {int(p["id"]): str(p.get("name") or p.get("displayName") or p["id"])
+                            for p in catalog.perks if _safe_int(p.get("id")) is not None}
+        self._data_ready = True
+        self._populate_style_combos()
+        if self._existing_page:
+            self._apply_existing_page(self._existing_page, fallback_name=self._fallback_name)
         self._refresh_all()
+        self._set_editor_enabled(True)
+        self.load_status.setText("Rune data loaded")
+        self.load_status.setToolTip("")
+        self.retry_button.hide()
+
+    def _on_data_failed(self, error: str) -> None:
+        self.load_status.setText("Could not load runes; Retry when League Client is ready")
+        self.load_status.setToolTip(error)
+        self.retry_button.show()
+
+    def _retry_load(self) -> None:
+        self.retry_button.hide()
+        self.load_status.setText("Loading rune data…")
+        self.rune_data.load()
+
+    def _set_editor_enabled(self, enabled: bool) -> None:
+        for widget in [self.name_edit, self.primary_style_combo, self.secondary_style_combo,
+                       *self.primary_rune_combos, *self.secondary_rune_combos, *self.shard_combos]:
+            widget.setEnabled(enabled)
+        if self._show_buttons:
+            self._save_button.setEnabled(enabled)
+
+    def _on_icon_loaded(self, perk_id: int, data: bytes | None) -> None:
+        icon = self._decode_icon(perk_id, data)
+        if icon is None:
+            return
+        # Decorating existing items must not rebuild combos or reset user choices.
+        for combo in self.primary_rune_combos + self.secondary_rune_combos + self.shard_combos:
+            for index in range(combo.count()):
+                value = combo.itemData(index)
+                rid = _safe_int(value.get("id")) if isinstance(value, dict) else _safe_int(value)
+                if rid == perk_id:
+                    combo.setItemIcon(index, icon)
+
+    def done(self, result: int) -> None:
+        if self._owns_data:
+            self.rune_data.shutdown()
+        super().done(result)
 
     def _build_ui(self) -> None:
         root = QVBoxLayout(self)
+        status = QHBoxLayout()
+        status.addWidget(self.load_status, 1)
+        status.addWidget(self.retry_button)
+        root.addLayout(status)
 
         header = QGroupBox("Rune Page")
         header_layout = QFormLayout(header)
@@ -226,6 +243,7 @@ class RunePageDialog(QDialog):
                 QDialogButtonBox.StandardButton.Save | QDialogButtonBox.StandardButton.Cancel
             )
             self._delete_button = buttons.addButton("Remove Custom", QDialogButtonBox.ButtonRole.DestructiveRole)
+            self._save_button = buttons.button(QDialogButtonBox.StandardButton.Save)
             buttons.accepted.connect(self._on_save)
             buttons.rejected.connect(self.reject)
             self._delete_button.clicked.connect(self._on_delete)
@@ -264,13 +282,12 @@ class RunePageDialog(QDialog):
         if pid in self._perk_icons:
             return self._perk_icons[pid]
 
-        icon_path = self._perk_icon_paths.get(pid)
-        asset_path = _normalize_asset_path(icon_path)
-        if asset_path is None:
-            self._perk_icons[pid] = None
+        icon_bytes = self.rune_data.icon(pid)
+        if icon_bytes is None:
             return None
+        return self._decode_icon(pid, icon_bytes)
 
-        icon_bytes = get_perk_icon_bytes(asset_path)
+    def _decode_icon(self, pid: int, icon_bytes: bytes | None) -> QIcon | None:
         if icon_bytes is None:
             self._perk_icons[pid] = None
             return None
@@ -631,6 +648,10 @@ class RunePageDialog(QDialog):
 
     def get_rune_page(self, *, allow_incomplete: bool = False) -> dict[str, Any] | None:
         """UI seçimlerinden LCU rune page payload'ı üretir."""
+        if not self._data_ready:
+            if not allow_incomplete:
+                QMessageBox.warning(self, "Loading", "Wait for rune data to load before saving.")
+            return None
         primary_style_id = _safe_int(self.primary_style_combo.currentData())
         secondary_style_id = _safe_int(self.secondary_style_combo.currentData())
         if primary_style_id is None or secondary_style_id is None:
