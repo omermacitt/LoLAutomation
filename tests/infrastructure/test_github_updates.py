@@ -26,8 +26,15 @@ def test_release_network_settings_and_token_are_backend_only():
     get = Mock(return_value=result)
     source = GithubUpdateSource("test/app", "secret", get=get)
     assert source.latest_release() == {"tag_name": "v2"}
-    get.assert_called_once_with("https://api.github.com/repos/test/app/releases/latest",
-                               headers={"Accept": "application/vnd.github+json", "Authorization": "Bearer secret"}, timeout=4.0)
+    get.assert_called_once_with(
+        "https://api.github.com/repos/test/app/releases/latest",
+        headers={
+            "Accept": "application/vnd.github+json",
+            "X-GitHub-Api-Version": "2022-11-28",
+            "Authorization": "Bearer secret",
+        },
+        timeout=4.0,
+    )
     result.status_code = 403
     assert source.latest_release() is None
     get.side_effect = OSError("offline")
@@ -52,9 +59,12 @@ def test_partial_or_empty_download_is_removed_and_never_reported_as_installer(tm
     def chunks(**kwargs):
         yield b"partial"
         raise OSError("disconnected")
+
     result = response()
     result.iter_content.side_effect = chunks
-    source = GithubUpdateSource("test/app", get=Mock(return_value=result), download_root=str(tmp_path))
+    source = GithubUpdateSource(
+        "test/app", get=Mock(return_value=result), download_root=str(tmp_path)
+    )
     with pytest.raises(OSError):
         source.download(info())
     assert list(tmp_path.iterdir()) == []
@@ -65,17 +75,22 @@ def test_partial_or_empty_download_is_removed_and_never_reported_as_installer(tm
     assert list(tmp_path.iterdir()) == []
 
 
-@pytest.mark.parametrize("name,url", [
-    ("../Setup.exe", "https://github.com/test/app/releases/download/v2/Setup.exe"),
-    ("C:\\Setup.exe", "https://github.com/test/app/releases/download/v2/Setup.exe"),
-    ("Setup.exe:other.exe", "https://github.com/test/app/releases/download/v2/Setup.exe"),
-    ("Setup.exe", "http://github.com/test/app/releases/download/v2/Setup.exe"),
-    ("Setup.exe", "https://arbitrary.test/Setup.exe"),
-    ("Setup.exe", "https://github.com/other/app/releases/download/v2/Setup.exe"),
-])
+@pytest.mark.parametrize(
+    "name,url",
+    [
+        ("../Setup.exe", "https://github.com/test/app/releases/download/v2/Setup.exe"),
+        ("C:\\Setup.exe", "https://github.com/test/app/releases/download/v2/Setup.exe"),
+        ("Setup.exe:other.exe", "https://github.com/test/app/releases/download/v2/Setup.exe"),
+        ("Setup.exe", "http://github.com/test/app/releases/download/v2/Setup.exe"),
+        ("Setup.exe", "https://arbitrary.test/Setup.exe"),
+        ("Setup.exe", "https://github.com/other/app/releases/download/v2/Setup.exe"),
+    ],
+)
 def test_download_rejects_paths_and_assets_outside_configured_repo(tmp_path, name, url):
     get = Mock()
     with pytest.raises(ValueError):
-        GithubUpdateSource("test/app", get=get, download_root=str(tmp_path)).download(info(name, url))
+        GithubUpdateSource("test/app", get=get, download_root=str(tmp_path)).download(
+            info(name, url)
+        )
     get.assert_not_called()
     assert list(tmp_path.iterdir()) == []

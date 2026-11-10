@@ -5,13 +5,15 @@ from unittest.mock import Mock
 import pytest
 from fastapi.testclient import TestClient
 
-from rune_pilot.application.champion_portrait_query import ChampionPortraitQuery, PNG_SIGNATURE
+from rune_pilot.application.champion_portrait_query import PNG_SIGNATURE, ChampionPortraitQuery
 from rune_pilot.composition.api_app import create_app
 
 
 def make_client(path="/lol-game-data/assets/v1/champion-icons/266.png", alias="Aatrox"):
     client = Mock()
-    client.champion_summary.return_value.json.return_value = [{"id": 266, "alias": alias, "squarePortraitPath": path}]
+    client.champion_summary.return_value.json.return_value = [
+        {"id": 266, "alias": alias, "squarePortraitPath": path}
+    ]
     client.asset.return_value.status_code = 200
     client.asset.return_value.content = PNG_SIGNATURE + b"portrait"
     return client
@@ -31,10 +33,16 @@ def test_portrait_route_serves_png_and_reuses_cached_bytes():
     source.champion_summary.assert_called_once()
 
 
-@pytest.mark.parametrize("path", [
-    "https://example.test/266.png", "/lol-login/v1/session", "/lol-game-data/assets/v1/champion-icons/17.png",
-    "/lol-game-data/assets/v1/champion-icons/../266.png", "/lol-game-data/assets/v1/champion-icons/266.png?private=1",
-])
+@pytest.mark.parametrize(
+    "path",
+    [
+        "https://example.test/266.png",
+        "/lol-login/v1/session",
+        "/lol-game-data/assets/v1/champion-icons/17.png",
+        "/lol-game-data/assets/v1/champion-icons/../266.png",
+        "/lol-game-data/assets/v1/champion-icons/266.png?private=1",
+    ],
+)
 def test_portrait_metadata_cannot_redirect_to_other_assets(path):
     source = make_client(path)
     with TestClient(create_app(league_client=source)) as api:

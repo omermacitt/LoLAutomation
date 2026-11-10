@@ -12,15 +12,23 @@ from rune_pilot.composition.api_app import create_app
 @pytest.fixture
 def sources():
     return SimpleNamespace(
-        summary=[{"id": 266, "name": "Aatrox"}, {"id": 1, "name": "Annie"}, {"id": 2, "name": "Olaf"}],
-        owned=[{"id": 266, "name": "Aatrox", "ownership": {"owned": True}},
-               {"id": 1, "name": "Annie", "ownership": {"owned": False}, "freeToPlay": True},
-               {"id": 2, "name": "Olaf", "ownership": {"owned": False}}],
-        phase="ChampSelect", names={266000: "Aatrox", 266001: "Justicar", 266002: "Mecha"},
+        summary=[
+            {"id": 266, "name": "Aatrox"},
+            {"id": 1, "name": "Annie"},
+            {"id": 2, "name": "Olaf"},
+        ],
+        owned=[
+            {"id": 266, "name": "Aatrox", "ownership": {"owned": True}},
+            {"id": 1, "name": "Annie", "ownership": {"owned": False}, "freeToPlay": True},
+            {"id": 2, "name": "Olaf", "ownership": {"owned": False}},
+        ],
+        phase="ChampSelect",
+        names={266000: "Aatrox", 266001: "Justicar", 266002: "Mecha"},
         skins={266002, 266001, 266000, 1001},
         styles=[{"id": 8000, "name": "Precision"}],
         perks=[{"id": 8005, "name": "Press the Attack", "iconPath": "perk-images/attack.png"}],
-        icon=b"png bytes", icon_paths=[],
+        icon=b"png bytes",
+        icon_paths=[],
     )
 
 
@@ -30,9 +38,13 @@ def service_for(sources):
         return sources.icon
 
     return GameQueryService(
-        champion_summary=lambda: sources.summary, owned_champions=lambda: sources.owned,
-        gameflow_phase=lambda: sources.phase, skin_options=lambda cid: (sources.names, sources.skins),
-        perk_styles=lambda: sources.styles, perks=lambda: sources.perks, perk_icon=icon,
+        champion_summary=lambda: sources.summary,
+        owned_champions=lambda: sources.owned,
+        gameflow_phase=lambda: sources.phase,
+        skin_options=lambda cid: (sources.names, sources.skins),
+        perk_styles=lambda: sources.styles,
+        perks=lambda: sources.perks,
+        perk_icon=icon,
     )
 
 
@@ -55,7 +67,9 @@ def test_classic_variants_do_not_duplicate_normal_pick_and_ban_options(sources):
 
 
 def test_variant_ownership_does_not_make_the_normal_champion_pickable(sources):
-    sources.owned = [{"id": 60266, "name": "Aatrox", "alias": "Jade_Aatrox", "ownership": {"owned": True}}]
+    sources.owned = [
+        {"id": 60266, "name": "Aatrox", "alias": "Jade_Aatrox", "ownership": {"owned": True}}
+    ]
     with TestClient(create_app(game_queries=service_for(sources))) as client:
         catalog = client.get("/champion-catalog").json()
     assert catalog["pickable_champions"] == []
@@ -72,8 +86,10 @@ def test_empty_ownership_does_not_offer_unowned_champions(sources):
 
 def test_ownership_failure_is_503_instead_of_empty_or_all_champions(sources):
     service = service_for(sources)
+
     def unavailable():
         raise OSError("LCU disconnected")
+
     service._owned_champions = unavailable
     with TestClient(create_app(game_queries=service)) as client:
         response = client.get("/champion-catalog")
@@ -93,14 +109,20 @@ def test_skins_include_default_and_only_owned_skins_for_this_champion(sources):
     assert response.status_code == 200
     assert response.json() == {
         "champion_id": 266,
-        "skins": [{"id": 266000, "name": "Default (Aatrox)"},
-                  {"id": 266001, "name": "Justicar"}, {"id": 266002, "name": "Mecha"}],
+        "skins": [
+            {"id": 266000, "name": "Default (Aatrox)"},
+            {"id": 266001, "name": "Justicar"},
+            {"id": 266002, "name": "Mecha"},
+        ],
     }
 
 
 def test_rune_catalog_and_binary_icon(sources):
     with TestClient(create_app(game_queries=service_for(sources))) as client:
-        assert client.get("/runes/catalog").json() == {"styles": sources.styles, "perks": sources.perks}
+        assert client.get("/runes/catalog").json() == {
+            "styles": sources.styles,
+            "perks": sources.perks,
+        }
         response = client.get("/runes/icons/8005")
         assert response.status_code == 200
         assert response.content == sources.icon
@@ -109,7 +131,16 @@ def test_rune_catalog_and_binary_icon(sources):
     assert sources.icon_paths == ["/lol-game-data/assets/v1/perk-images/attack.png"]
 
 
-@pytest.mark.parametrize("path", ["https://example.test/icon.png", "/lol-login/v1/session", "../private", "a\\b.png", "icon.png?x=1"])
+@pytest.mark.parametrize(
+    "path",
+    [
+        "https://example.test/icon.png",
+        "/lol-login/v1/session",
+        "../private",
+        "a\\b.png",
+        "icon.png?x=1",
+    ],
+)
 def test_icon_route_does_not_accept_arbitrary_or_remote_lcu_paths(sources, path):
     sources.perks[0]["iconPath"] = path
     with TestClient(create_app(game_queries=service_for(sources))) as client:
@@ -123,7 +154,10 @@ def test_nonpositive_ids_are_rejected(sources, url):
         assert client.get(url).status_code == 422
 
 
-@pytest.mark.parametrize("field,url", [("summary", "/champion-catalog"), ("styles", "/runes/catalog"), ("perks", "/runes/catalog")])
+@pytest.mark.parametrize(
+    "field,url",
+    [("summary", "/champion-catalog"), ("styles", "/runes/catalog"), ("perks", "/runes/catalog")],
+)
 def test_incomplete_catalogs_report_unavailable(sources, field, url):
     setattr(sources, field, [])
     with TestClient(create_app(game_queries=service_for(sources))) as client:

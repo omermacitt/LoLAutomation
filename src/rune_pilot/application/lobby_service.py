@@ -4,19 +4,36 @@ import time
 from collections.abc import Callable
 from typing import Any
 
-from rune_pilot.application.ports.league_client import LeagueClient
 from rune_pilot.application.champion_query import ChampionQuery
-from rune_pilot.domain.champ_select import is_teammate_showing, pick_candidates, local_player, open_pick_action
+from rune_pilot.application.ports.league_client import LeagueClient
+from rune_pilot.domain.champ_select import (
+    is_teammate_showing,
+    local_player,
+    open_pick_action,
+    pick_candidates,
+)
 
 
 class LobbyService:
-    def __init__(self, client: LeagueClient, champions: ChampionQuery, *, sleep: Callable[[float], None] = time.sleep):
+    def __init__(
+        self,
+        client: LeagueClient,
+        champions: ChampionQuery,
+        *,
+        sleep: Callable[[float], None] = time.sleep,
+    ):
         self._client = client
         self._champions = champions
         self._sleep = sleep
         self._last_ban_skip: tuple[int, int] | None = None
 
-    def do_ban(self, session: dict[str, Any], champ_id: int, *, should_run: Callable[[], bool] = lambda: True) -> None:
+    def do_ban(
+        self,
+        session: dict[str, Any],
+        champ_id: int,
+        *,
+        should_run: Callable[[], bool] = lambda: True,
+    ) -> None:
         """Attempts to ban the given champion if the player's ban action is open."""
         my_cell = session.get("localPlayerCellId")
 
@@ -41,7 +58,9 @@ class LobbyService:
                         key = None
 
                     if key is not None and self._last_ban_skip != key:
-                        champ_name = self._champions.get_champion_name_by_id(int(champ_id)) or str(champ_id)
+                        champ_name = self._champions.get_champion_name_by_id(int(champ_id)) or str(
+                            champ_id
+                        )
                         print(
                             f"[BAN] Skipping ban for {champ_name} ({champ_id}) because a teammate is showing it"
                         )
@@ -84,19 +103,25 @@ class LobbyService:
             print(f"[AUTO-PICK] Error fetching pickable champion ids: {e}")
             return None
 
-    def auto_pick_impl(self, session: dict[str, Any], champion_ids: list[int], *, should_run: Callable[[], bool] = lambda: True) -> dict[str, Any]:
+    def auto_pick_impl(
+        self,
+        session: dict[str, Any],
+        champion_ids: list[int],
+        *,
+        should_run: Callable[[], bool] = lambda: True,
+    ) -> dict[str, Any]:
         """
         Tries to pick the first available champion from the preference list.
 
         The order of `champion_ids` matters; the first eligible champion is attempted.
         """
         player = local_player(session)
-        if player.get('championId') or player.get('championPickIntent'):
-            return {'status': 'manual_selection'}
+        if player.get("championId") or player.get("championPickIntent"):
+            return {"status": "manual_selection"}
         action = open_pick_action(session)
         if action is None:
-            return {'status': 'no_pick_available'}
-        action_id = action.get('id')
+            return {"status": "no_pick_available"}
+        action_id = action.get("id")
         valid_ids: list[int] = []
         for c in champion_ids:
             try:
@@ -156,8 +181,13 @@ class LobbyService:
         except Exception:
             return None
 
-    def ensure_lobby(self, queue_id: int, *, should_run: Callable[[], bool] = lambda: True,
-                     wait: Callable[[float], bool] | None = None) -> bool:
+    def ensure_lobby(
+        self,
+        queue_id: int,
+        *,
+        should_run: Callable[[], bool] = lambda: True,
+        wait: Callable[[float], bool] | None = None,
+    ) -> bool:
         """Ensures a lobby with the given queue ID exists, creating one if necessary. Returns True on success."""
         try:
             res = self._client.lobby()
@@ -193,7 +223,9 @@ class LobbyService:
 
         return False
 
-    def ensure_matchmaking_searching(self, *, should_run: Callable[[], bool] = lambda: True) -> None:
+    def ensure_matchmaking_searching(
+        self, *, should_run: Callable[[], bool] = lambda: True
+    ) -> None:
         """Starts matchmaking search if it is not already searching."""
         try:
             state_res = self._client.matchmaking_search_state()

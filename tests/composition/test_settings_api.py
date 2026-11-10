@@ -35,18 +35,28 @@ def test_repeated_champions_are_rejected_without_writing_settings(tmp_path):
 
 def test_old_duplicates_leave_empty_slots_without_changing_other_roles_or_the_file(tmp_path):
     path = tmp_path / "settings.json"
-    original = {"role_champions_ui": {"TOP": [266, "266", 103], "MIDDLE": [266, None, None]},
-                "custom_summoner_spells": {"TOP": {"266": {"spell1Id": 4, "spell2Id": 14}}},
-                "accounts": [{"id": "keep"}]}
+    original = {
+        "role_champions_ui": {"TOP": [266, "266", 103], "MIDDLE": [266, None, None]},
+        "custom_summoner_spells": {"TOP": {"266": {"spell1Id": 4, "spell2Id": 14}}},
+        "accounts": [{"id": "keep"}],
+    }
     path.write_text(json.dumps(original), encoding="utf-8")
     with client_for(path) as client:
         response = client.get("/settings")
         assert response.status_code == 200
         payload = response.json()
-        assert payload["role_champions_ui"] == {"TOP": [266, None, 103], "MIDDLE": [266, None, None]}
+        assert payload["role_champions_ui"] == {
+            "TOP": [266, None, 103],
+            "MIDDLE": [266, None, None],
+        }
         assert payload["custom_summoner_spells"] == original["custom_summoner_spells"]
         assert json.loads(path.read_text(encoding="utf-8")) == original
-        assert client.put("/settings", json=payload, headers={"If-Match": response.headers["etag"]}).status_code == 200
+        assert (
+            client.put(
+                "/settings", json=payload, headers={"If-Match": response.headers["etag"]}
+            ).status_code
+            == 200
+        )
     assert "accounts" not in json.loads(path.read_text(encoding="utf-8"))
 
 
@@ -54,7 +64,9 @@ def test_settings_round_trip_removes_obsolete_accounts_and_preserves_unowned_key
     path = tmp_path / "settings.json"
     accounts = [{"id": "a1", "username": "tester", "encrypted_password": "secret"}]
     path.write_text(json.dumps({"accounts": accounts, "other": {"value": 1}}), encoding="utf-8")
-    payload = UserConfig(queue_name="Ranked Flex", role_champions_ui={"TOP": [266, None, 1]}).to_raw()
+    payload = UserConfig(
+        queue_name="Ranked Flex", role_champions_ui={"TOP": [266, None, 1]}
+    ).to_raw()
     with client_for(path) as client:
         # Obsolete account input cannot be restored through settings.
         response = client.put("/settings", json={**payload, "accounts": []})
@@ -73,7 +85,10 @@ def test_get_settings_migrates_legacy_values_without_writing(tmp_path):
     path.write_text(json.dumps(raw), encoding="utf-8")
     with client_for(path) as client:
         response = client.get("/settings")
-    assert response.json()["custom_summoner_spells"]["TOP"]["266"] == {"spell1Id": 4, "spell2Id": 14}
+    assert response.json()["custom_summoner_spells"]["TOP"]["266"] == {
+        "spell1Id": 4,
+        "spell2Id": 14,
+    }
     assert json.loads(path.read_text(encoding="utf-8")) == raw
 
 
@@ -106,7 +121,11 @@ def test_stale_revision_does_not_overwrite_other_window(tmp_path):
     with client_for(path) as client:
         first = client.get("/settings")
         revision = first.headers["etag"]
-        accepted = client.put("/settings", json=UserConfig(queue_name="Ranked Flex").to_raw(), headers={"If-Match": revision})
+        accepted = client.put(
+            "/settings",
+            json=UserConfig(queue_name="Ranked Flex").to_raw(),
+            headers={"If-Match": revision},
+        )
         assert accepted.status_code == 200
         assert accepted.headers["etag"] != revision
         before = path.read_bytes()
@@ -121,8 +140,14 @@ def test_foreign_preference_changes_do_not_conflict_with_settings_save(tmp_path)
     with client_for(path) as client:
         initial = client.get("/settings")
         preferences = {"theme": "dark"}
-        ConfigRepository(str(path), fallback_paths=()).update(lambda data: data.update({"preferences": preferences}))
-        response = client.put("/settings", json=UserConfig(queue_name="Normal Draft").to_raw(), headers={"If-Match": initial.headers["etag"]})
+        ConfigRepository(str(path), fallback_paths=()).update(
+            lambda data: data.update({"preferences": preferences})
+        )
+        response = client.put(
+            "/settings",
+            json=UserConfig(queue_name="Normal Draft").to_raw(),
+            headers={"If-Match": initial.headers["etag"]},
+        )
         assert response.status_code == 200
         assert client.get("/settings").headers["etag"] == response.headers["etag"]
     assert json.loads(path.read_text(encoding="utf-8"))["preferences"] == preferences

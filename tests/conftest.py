@@ -15,8 +15,13 @@ import pytest
 def isolated_default_profile(tmp_path, monkeypatch):
     """Production-style app startup must never migrate the real user profile."""
     from rune_pilot.infrastructure import config_repository
-    monkeypatch.setattr(config_repository, "CONFIG_FILE", str(tmp_path / "current" / "user_config.json"))
-    monkeypatch.setattr(config_repository, "LEGACY_APP_CONFIG_FILE", str(tmp_path / "legacy" / "user_config.json"))
+
+    monkeypatch.setattr(
+        config_repository, "CONFIG_FILE", str(tmp_path / "current" / "user_config.json")
+    )
+    monkeypatch.setattr(
+        config_repository, "LEGACY_APP_CONFIG_FILE", str(tmp_path / "legacy" / "user_config.json")
+    )
     monkeypatch.setattr(config_repository, "LEGACY_CONFIG_FILE", "")
 
 

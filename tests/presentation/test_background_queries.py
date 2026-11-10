@@ -11,11 +11,13 @@ def test_query_runs_off_ui_thread_and_does_not_overlap(qt_app, wait_until):
     started = threading.Event()
     threads, results = [], []
     query.succeeded.connect(results.append)
+
     def read():
         threads.append(threading.get_ident())
         started.set()
         gate.wait(3)
         return "result"
+
     try:
         assert query.run(read)
         wait_until(started.is_set)
@@ -35,10 +37,12 @@ def test_closed_query_cannot_deliver_late_results(qt_app, wait_until):
     gate, finished = threading.Event(), threading.Event()
     results = []
     query.succeeded.connect(results.append)
+
     def read():
         gate.wait(3)
         finished.set()
         return "too late"
+
     query.run(read)
     query.shutdown()
     gate.set()

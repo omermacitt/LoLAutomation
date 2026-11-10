@@ -1,6 +1,7 @@
 """Thread-safe, transient selection feedback, separate from persisted settings."""
 
 import threading
+
 from rune_pilot.domain.selection_notice import SelectionNotice
 
 
@@ -17,7 +18,9 @@ class SelectionFeedback:
                 return
             self._counter += 1
             self._context = context
-            self._notice = SelectionNotice(id=self._counter, code=code, role=role, champion_id=champion_id)
+            self._notice = SelectionNotice(
+                id=self._counter, code=code, role=role, champion_id=champion_id
+            )
 
     def clear(self):
         with self._lock:

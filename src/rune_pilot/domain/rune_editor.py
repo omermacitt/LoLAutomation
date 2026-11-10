@@ -81,27 +81,55 @@ def normalize_editor_catalog(styles: list[dict], perks: list[dict]) -> RuneEdito
     def row(slot: Any) -> list[RuneChoice]:
         if not isinstance(slot, dict):
             return []
-        values = next((slot[key] for key in ("runes", "perks", "perkIds", "runeIds") if isinstance(slot.get(key), list)), [])
+        values = next(
+            (
+                slot[key]
+                for key in ("runes", "perks", "perkIds", "runeIds")
+                if isinstance(slot.get(key), list)
+            ),
+            [],
+        )
         result: dict[int, RuneChoice] = {}
         for value in values:
             embedded = value if isinstance(value, dict) else {}
-            rid = _id(embedded.get("id") or embedded.get("perkId") or embedded.get("runeId") or (value if not embedded else None))
+            rid = _id(
+                embedded.get("id")
+                or embedded.get("perkId")
+                or embedded.get("runeId")
+                or (value if not embedded else None)
+            )
             if rid is None:
                 continue
             metadata = {**lookup.get(rid, {}), **embedded}
-            result[rid] = RuneChoice(id=rid,
-                name=_text(metadata.get("name") or metadata.get("displayName") or metadata.get("perkName") or rid),
-                description=_text(metadata.get("longDesc") or metadata.get("shortDesc") or metadata.get("tooltip")))
+            result[rid] = RuneChoice(
+                id=rid,
+                name=_text(
+                    metadata.get("name")
+                    or metadata.get("displayName")
+                    or metadata.get("perkName")
+                    or rid
+                ),
+                description=_text(
+                    metadata.get("longDesc") or metadata.get("shortDesc") or metadata.get("tooltip")
+                ),
+            )
         return list(result.values())
 
-    stat_style = next((style for style in styles if isinstance(style, dict) and _id(style.get("id")) == 5000), None)
+    stat_style = next(
+        (style for style in styles if isinstance(style, dict) and _id(style.get("id")) == 5000),
+        None,
+    )
     normalized: list[RuneEditorStyle] = []
     for style in styles:
         if not isinstance(style, dict) or _id(style.get("id")) not in MAIN_STYLES:
             continue
         sid = int(style["id"])
         slots = _slots(style)
-        stat_slots = [slot for slot in slots if isinstance(slot, dict) and "statmod" in str(slot.get("type", "")).lower()]
+        stat_slots = [
+            slot
+            for slot in slots
+            if isinstance(slot, dict) and "statmod" in str(slot.get("type", "")).lower()
+        ]
         primary_slots = [slot for slot in slots if slot not in stat_slots][:4]
         if len(stat_slots) < 3:
             stat_slots = _slots(stat_style) if stat_style else slots[4:7]
@@ -109,9 +137,23 @@ def normalize_editor_catalog(styles: list[dict], perks: list[dict]) -> RuneEdito
         if len(rows) != 4 or len(shards) != 3 or not all(rows + shards):
             raise ValueError("Rune slot metadata is incomplete")
         allowed = style.get("allowedSubStyles")
-        allowed_ids = [_id(value) for value in allowed] if isinstance(allowed, list) else list(MAIN_STYLES - {sid})
-        normalized.append(RuneEditorStyle(id=sid, name=_text(style.get("name") or sid), description=_text(style.get("tooltip")),
-            allowedSubStyles=[value for value in allowed_ids if value in MAIN_STYLES and value != sid], rows=rows, shardRows=shards))
+        allowed_ids = (
+            [_id(value) for value in allowed]
+            if isinstance(allowed, list)
+            else list(MAIN_STYLES - {sid})
+        )
+        normalized.append(
+            RuneEditorStyle(
+                id=sid,
+                name=_text(style.get("name") or sid),
+                description=_text(style.get("tooltip")),
+                allowedSubStyles=[
+                    value for value in allowed_ids if value in MAIN_STYLES and value != sid
+                ],
+                rows=rows,
+                shardRows=shards,
+            )
+        )
     available = {style.id for style in normalized}
     for style in normalized:
         style.allowedSubStyles = [sid for sid in style.allowedSubStyles if sid in available]
@@ -128,10 +170,23 @@ def validate_editor_page(page: RunePage, catalog: RuneEditorCatalog) -> RunePage
     ids = page.selectedPerkIds
     if any(ids[index] not in {perk.id for perk in row} for index, row in enumerate(primary.rows)):
         raise ValueError("Choose one rune from every primary row")
-    secondary_rows = [next((index for index, row in enumerate(secondary.rows[1:], 1) if rid in {perk.id for perk in row}), None) for rid in ids[4:6]]
+    secondary_rows = [
+        next(
+            (
+                index
+                for index, row in enumerate(secondary.rows[1:], 1)
+                if rid in {perk.id for perk in row}
+            ),
+            None,
+        )
+        for rid in ids[4:6]
+    ]
     if None in secondary_rows or len(set(secondary_rows)) != 2:
         raise ValueError("Secondary runes must come from two different non-keystone rows")
     # Shards may legally repeat across different rows (for example 5008 / 5008).
-    if any(ids[index + 6] not in {perk.id for perk in row} for index, row in enumerate(primary.shardRows)):
+    if any(
+        ids[index + 6] not in {perk.id for perk in row}
+        for index, row in enumerate(primary.shardRows)
+    ):
         raise ValueError("Choose one stat shard from every row")
     return page

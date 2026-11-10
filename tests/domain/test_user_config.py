@@ -123,7 +123,10 @@ class TestSpellMigration:
                 }
             }
         )
-        assert config.custom_summoner_spells["TOP"]["266"] == {"spell1Id": FLASH, "spell2Id": IGNITE}
+        assert config.custom_summoner_spells["TOP"]["266"] == {
+            "spell1Id": FLASH,
+            "spell2Id": IGNITE,
+        }
         assert config.custom_summoner_spells["JUNGLE"]["64"] == {"spell1Id": FLASH, "spell2Id": 11}
 
     def test_nothing_is_migrated_when_the_role_has_no_picks(self):
@@ -145,7 +148,9 @@ class TestRoundTrip:
                 "custom_runes": {"103": {"1": {"name": "page"}}},
                 "rune_selection": {"103": 1},
                 "custom_skins": {"MIDDLE": {"103": 103001}},
-                "custom_summoner_spells": {"MIDDLE": {"103": {"spell1Id": FLASH, "spell2Id": IGNITE}}},
+                "custom_summoner_spells": {
+                    "MIDDLE": {"103": {"spell1Id": FLASH, "spell2Id": IGNITE}}
+                },
             }
         )
         assert UserConfig.from_raw(original.to_raw()) == original

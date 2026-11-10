@@ -3,8 +3,12 @@
 import threading
 from typing import Any
 
-from rune_pilot.application.ports.league_client import LeagueClient, ClientReply
-from rune_pilot.domain.champion_service import normalize_champion_id, champion_slug_from_alias, is_mode_champion_variant
+from rune_pilot.application.ports.league_client import ClientReply, LeagueClient
+from rune_pilot.domain.champion_service import (
+    champion_slug_from_alias,
+    is_mode_champion_variant,
+    normalize_champion_id,
+)
 
 
 class ChampionQuery:
@@ -88,7 +92,8 @@ class ChampionQuery:
                 if isinstance(ownership, dict) and ownership.get("owned") is False:
                     continue
                 result[cid] = {
-                    "id": cid, "name": str(champion.get("name") or "Unknown"),
+                    "id": cid,
+                    "name": str(champion.get("name") or "Unknown"),
                     "alias": str(champion.get("alias") or ""),
                 }
             return result

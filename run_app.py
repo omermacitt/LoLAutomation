@@ -5,10 +5,10 @@ Starts the FastAPI service in a background thread and opens the PyQt desktop UI.
 Use `run_app.spec` to build an EXE with PyInstaller.
 """
 
-import threading
-import sys
-import os
 import datetime
+import os
+import sys
+import threading
 import traceback
 
 # Allow running straight from a source checkout, with no `pip install -e .`
@@ -16,12 +16,17 @@ _SRC_DIR = os.path.join(os.path.abspath(os.path.dirname(__file__)), "src")
 if os.path.isdir(_SRC_DIR) and _SRC_DIR not in sys.path:
     sys.path.insert(0, _SRC_DIR)
 
-from rune_pilot.shared.app_meta import APP_DISPLAY_NAME, APP_ID
+from rune_pilot.shared.app_meta import (  # noqa: E402 - source-checkout bootstrap above
+    APP_DISPLAY_NAME,
+    APP_ID,
+)
+
 
 def get_log_path() -> str:
     """Returns the application log file path (`%APPDATA%\\RunePilot\\run_app.log`)."""
     base_dir = os.getenv("APPDATA") or os.path.expanduser("~")
     return os.path.join(base_dir, APP_ID, "run_app.log")
+
 
 def log_line(message: str) -> None:
     """Appends a single timestamped line to the log file (silently ignores errors)."""
@@ -34,9 +39,11 @@ def log_line(message: str) -> None:
     except Exception:
         pass
 
+
 def format_exception(e: Exception) -> str:
     """Formats an exception with its full traceback as a string."""
     return "".join(traceback.format_exception(type(e), e, e.__traceback__)).strip()
+
 
 def start_server(stop_signal: threading.Event | None = None) -> None:
     """Starts the FastAPI service via uvicorn (runs inside a background thread)."""
@@ -57,7 +64,8 @@ def start_server(stop_signal: threading.Event | None = None) -> None:
                 },
                 "rune_file": {
                     "class": "logging.FileHandler",
-                    "filename": get_log_path(), "encoding": "utf-8",
+                    "filename": get_log_path(),
+                    "encoding": "utf-8",
                     "formatter": "simple",
                 },
             },
@@ -69,20 +77,30 @@ def start_server(stop_signal: threading.Event | None = None) -> None:
             },
         }
         from rune_pilot.composition.api_app import create_app
+
         app = create_app()
 
-        server = uvicorn.Server(uvicorn.Config(
-            app, host="127.0.0.1", port=8000, log_level="info", log_config=log_config,
-        ))
+        server = uvicorn.Server(
+            uvicorn.Config(
+                app,
+                host="127.0.0.1",
+                port=8000,
+                log_level="info",
+                log_config=log_config,
+            )
+        )
         if stop_signal is not None:
+
             def wait_for_close() -> None:
                 stop_signal.wait()
                 server.should_exit = True
+
             threading.Thread(target=wait_for_close, daemon=True).start()
         server.run()
     except Exception as e:
         log_line(f"[RUN_APP] Failed to start API: {e}")
         log_line(format_exception(e))
+
 
 if __name__ == "__main__":
     log_line(f"[RUN_APP] Starting {APP_DISPLAY_NAME}")

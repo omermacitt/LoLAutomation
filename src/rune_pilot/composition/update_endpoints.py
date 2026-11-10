@@ -2,7 +2,7 @@
 
 from fastapi import Depends, FastAPI, HTTPException, Request
 
-from rune_pilot.application.update_service import UpdateService, UnknownUpdate, UpdateDownloadFailed
+from rune_pilot.application.update_service import UnknownUpdate, UpdateDownloadFailed, UpdateService
 from rune_pilot.domain.update import UpdateCheck, UpdateDownload
 
 

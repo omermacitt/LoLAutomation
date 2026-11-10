@@ -27,7 +27,9 @@ def test_compare_and_write_is_atomic_between_two_settings_writers(config_path):
         except ConfigConflict:
             outcomes.append("conflict")
 
-    workers = [threading.Thread(target=write, args=(name,)) for name in ("Normal Draft", "Ranked Flex")]
+    workers = [
+        threading.Thread(target=write, args=(name,)) for name in ("Normal Draft", "Ranked Flex")
+    ]
     for worker in workers:
         worker.start()
     for worker in workers:
@@ -105,9 +107,14 @@ class TestForeignKeysSurvive:
         def save_preferences() -> None:
             barrier.wait()
             for i in range(50):
-                repository.update(lambda data, i=i: data.__setitem__("preferences", {"iteration": i}))
+                repository.update(
+                    lambda data, i=i: data.__setitem__("preferences", {"iteration": i})
+                )
 
-        threads = [threading.Thread(target=save_settings), threading.Thread(target=save_preferences)]
+        threads = [
+            threading.Thread(target=save_settings),
+            threading.Thread(target=save_preferences),
+        ]
         for thread in threads:
             thread.start()
         for thread in threads:

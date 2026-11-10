@@ -5,21 +5,27 @@ from unittest.mock import Mock
 
 import pytest
 
-from rune_pilot.domain.update import UpdateInfo, UpdateDownload
+from rune_pilot.domain.update import UpdateDownload, UpdateInfo
 from rune_pilot.presentation.api_client import ApiError
 from rune_pilot.presentation.controllers.update_controller import UpdateController
 
 
 def offer():
-    return UpdateInfo(update_id="known-id", latest_version="2", asset_download_url="https://github.com/test/app/Setup.exe")
+    return UpdateInfo(
+        update_id="known-id",
+        latest_version="2",
+        asset_download_url="https://github.com/test/app/Setup.exe",
+    )
 
 
 def test_check_runs_in_background_and_only_schedules_once(qt_app, wait_until):
     api = Mock()
     threads = []
+
     def check():
         threads.append(threading.get_ident())
         return offer()
+
     api.check_update.side_effect = check
     controller = UpdateController(api_client=api)
     received = []
@@ -56,11 +62,13 @@ def test_unavailable_checks_are_silent(qt_app, wait_until, result):
 def test_download_sends_only_registered_id_and_prevents_duplicate_requests(qt_app, wait_until):
     entered, release = threading.Event(), threading.Event()
     api = Mock()
+
     def download(update_id):
         assert update_id == "known-id"
         entered.set()
         assert release.wait(2)
         return UpdateDownload(installer_path="C:/temp/Setup.exe")
+
     api.download_update.side_effect = download
     controller = UpdateController(api_client=api)
     started, finished = [], []
@@ -101,11 +109,15 @@ def test_failure_allows_download_retry(qt_app, wait_until):
 def test_close_suppresses_late_results_and_stops_scheduled_timer(qt_app, wait_until, operation):
     entered, release, finished = threading.Event(), threading.Event(), threading.Event()
     api = Mock()
+
     def request(*args):
         entered.set()
         release.wait(2)
         finished.set()
-        return offer() if operation == "check" else UpdateDownload(installer_path="C:/temp/Setup.exe")
+        return (
+            offer() if operation == "check" else UpdateDownload(installer_path="C:/temp/Setup.exe")
+        )
+
     api.check_update.side_effect = api.download_update.side_effect = request
     controller = UpdateController(api_client=api)
     results = []

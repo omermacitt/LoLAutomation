@@ -2,8 +2,7 @@
 
 from typing import Any
 
-from rune_pilot.domain.champion_service import normalize_spell_id
-from rune_pilot.domain.champion_service import normalize_champion_id
+from rune_pilot.domain.champion_service import normalize_champion_id, normalize_spell_id
 from rune_pilot.shared.utils import safe_int_list
 
 
@@ -12,33 +11,53 @@ def pick_candidates(session: dict, preferences: list, pickable_ids: set[int] | N
     candidates = [cid for value in preferences if (cid := normalize_champion_id(value)) is not None]
     if pickable_ids is not None:
         candidates = [cid for cid in candidates if cid in pickable_ids]
-    return [cid for cid in candidates if not is_banned(session, cid) and not is_picked(session, cid)]
+    return [
+        cid for cid in candidates if not is_banned(session, cid) and not is_picked(session, cid)
+    ]
 
 
 def local_player(session: dict) -> dict:
-    return next((player for player in session.get('myTeam', []) if isinstance(player, dict)
-                 and player.get('cellId') == session.get('localPlayerCellId')), {})
+    return next(
+        (
+            player
+            for player in session.get("myTeam", [])
+            if isinstance(player, dict) and player.get("cellId") == session.get("localPlayerCellId")
+        ),
+        {},
+    )
 
 
 def open_pick_action(session: dict, *, active_only: bool = True) -> dict | None:
-    return next((action for group in session.get('actions', []) if isinstance(group, list)
-                 for action in group if isinstance(action, dict) and action.get('type') == 'pick'
-                 and action.get('actorCellId') == session.get('localPlayerCellId')
-                 and not action.get('completed') and (not active_only or action.get('isInProgress') is not False)), None)
+    return next(
+        (
+            action
+            for group in session.get("actions", [])
+            if isinstance(group, list)
+            for action in group
+            if isinstance(action, dict)
+            and action.get("type") == "pick"
+            and action.get("actorCellId") == session.get("localPlayerCellId")
+            and not action.get("completed")
+            and (not active_only or action.get("isInProgress") is not False)
+        ),
+        None,
+    )
 
 
 def spell_fallbacks(config: dict, role: str, champion_id: int) -> tuple[Any, bool]:
     """First-preference-derived defaults must not leak to a replacement champion."""
-    pools = config.get('role_champions') or {}
-    role_map = config.get('role_summoner_spells') or {}
+    pools = config.get("role_champions") or {}
+    role_map = config.get("role_summoner_spells") or {}
     entry = role_map.get(role) if isinstance(role_map, dict) else None
     if not pools:  # Older API clients may supply explicit generic spell pairs.
         return entry, True
     preferences = safe_int_list(pools.get(role))
-    primary = str(config.get('primary_role') or '').upper()
+    primary = str(config.get("primary_role") or "").upper()
     primary_preferences = safe_int_list(pools.get(primary))
     role_matches = bool(preferences and preferences[0] == champion_id)
-    global_matches = bool(role == primary and primary_preferences and primary_preferences[0] == champion_id)
+    global_matches = bool(
+        role == primary and primary_preferences and primary_preferences[0] == champion_id
+    )
     return entry if role_matches else None, global_matches
 
 

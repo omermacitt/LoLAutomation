@@ -3,7 +3,13 @@
 from collections.abc import Callable
 
 from rune_pilot.application.game_query_service import GameQueryService, QueryUnavailable
-from rune_pilot.domain.rune_editor import RuneEditorCatalog, RunePage, RuneRecommendation, normalize_editor_catalog, validate_editor_page
+from rune_pilot.domain.rune_editor import (
+    RuneEditorCatalog,
+    RunePage,
+    RuneRecommendation,
+    normalize_editor_catalog,
+    validate_editor_page,
+)
 
 
 class RuneEditorService:
@@ -27,7 +33,9 @@ class RuneEditorService:
             return RuneRecommendation(champion_id=champion_id, unavailableReason="missing")
         catalog = self.catalog()
         try:
-            normalized = validate_editor_page(RunePage.model_validate({**page, "name": "Önerilen"}), catalog)
+            normalized = validate_editor_page(
+                RunePage.model_validate({**page, "name": "Önerilen"}), catalog
+            )
             return RuneRecommendation(champion_id=champion_id, page=normalized)
         except ValueError:
             return RuneRecommendation(champion_id=champion_id, unavailableReason="outdated")

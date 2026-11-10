@@ -98,6 +98,7 @@ def _get_style_slots(style: dict[str, Any]) -> list[Any]:
 
 class RunePageDialog(QDialog):
     """Kullanıcının özel rün sayfası oluşturmasını/düzenlemesini sağlayan diyalog."""
+
     def __init__(
         self,
         *,
@@ -111,7 +112,9 @@ class RunePageDialog(QDialog):
         super().__init__(parent)
         self._show_buttons = bool(show_buttons)
         self._owns_data = rune_data is None
-        self.rune_data = rune_data if rune_data is not None else RuneDataController(api_client, self)
+        self.rune_data = (
+            rune_data if rune_data is not None else RuneDataController(api_client, self)
+        )
         self._data_ready = False
         self._existing_page = existing_page
         self._fallback_name = f"Custom-{champion_name}"
@@ -154,9 +157,14 @@ class RunePageDialog(QDialog):
             self.rune_data.load()
 
     def _on_catalog_loaded(self, catalog: RuneCatalog) -> None:
-        self._styles = {int(s["id"]): s for s in catalog.styles if _safe_int(s.get("id")) is not None}
-        self._perk_names = {int(p["id"]): str(p.get("name") or p.get("displayName") or p["id"])
-                            for p in catalog.perks if _safe_int(p.get("id")) is not None}
+        self._styles = {
+            int(s["id"]): s for s in catalog.styles if _safe_int(s.get("id")) is not None
+        }
+        self._perk_names = {
+            int(p["id"]): str(p.get("name") or p.get("displayName") or p["id"])
+            for p in catalog.perks
+            if _safe_int(p.get("id")) is not None
+        }
         self._data_ready = True
         self._populate_style_combos()
         if self._existing_page:
@@ -178,8 +186,14 @@ class RunePageDialog(QDialog):
         self.rune_data.load()
 
     def _set_editor_enabled(self, enabled: bool) -> None:
-        for widget in [self.name_edit, self.primary_style_combo, self.secondary_style_combo,
-                       *self.primary_rune_combos, *self.secondary_rune_combos, *self.shard_combos]:
+        for widget in [
+            self.name_edit,
+            self.primary_style_combo,
+            self.secondary_style_combo,
+            *self.primary_rune_combos,
+            *self.secondary_rune_combos,
+            *self.shard_combos,
+        ]:
             widget.setEnabled(enabled)
         if self._show_buttons:
             self._save_button.setEnabled(enabled)
@@ -242,7 +256,9 @@ class RunePageDialog(QDialog):
             buttons = QDialogButtonBox(
                 QDialogButtonBox.StandardButton.Save | QDialogButtonBox.StandardButton.Cancel
             )
-            self._delete_button = buttons.addButton("Remove Custom", QDialogButtonBox.ButtonRole.DestructiveRole)
+            self._delete_button = buttons.addButton(
+                "Remove Custom", QDialogButtonBox.ButtonRole.DestructiveRole
+            )
             self._save_button = buttons.button(QDialogButtonBox.StandardButton.Save)
             buttons.accepted.connect(self._on_save)
             buttons.rejected.connect(self.reject)
@@ -307,7 +323,11 @@ class RunePageDialog(QDialog):
         self.secondary_style_combo.blockSignals(True)
         self.secondary_style_combo.clear()
 
-        main_styles = [s for sid, s in self._styles.items() if sid in MAIN_STYLE_IDS and sid != selected_primary_id]
+        main_styles = [
+            s
+            for sid, s in self._styles.items()
+            if sid in MAIN_STYLE_IDS and sid != selected_primary_id
+        ]
         main_styles.sort(key=lambda s: str(s.get("name") or ""))
         for s in main_styles:
             self.secondary_style_combo.addItem(str(s.get("name") or s.get("id")), int(s["id"]))
@@ -352,7 +372,9 @@ class RunePageDialog(QDialog):
         self._secondary_last_changed = index
         self._enforce_secondary_row_constraint()
 
-    def _set_combo_items_enabled_by_slot(self, combo: QComboBox, forbidden_slot: int | None) -> None:
+    def _set_combo_items_enabled_by_slot(
+        self, combo: QComboBox, forbidden_slot: int | None
+    ) -> None:
         model = combo.model()
         for row in range(combo.count()):
             data = combo.itemData(row)
@@ -469,7 +491,7 @@ class RunePageDialog(QDialog):
                         cb.setCurrentIndex(idx)
                         break
             cb.blockSignals(False)
-        
+
         self._enforce_secondary_row_constraint()
 
     def _refresh_shards(self) -> None:
@@ -612,29 +634,32 @@ class RunePageDialog(QDialog):
         secondary_ids = perk_ints[4:6]
         shard_ids = perk_ints[6:9]
 
-        for combo, rid in zip(self.primary_rune_combos, primary_ids):
+        for combo, rid in zip(self.primary_rune_combos, primary_ids, strict=False):
             idx = combo.findData(rid)
             if idx >= 0:
                 combo.setCurrentIndex(idx)
 
-        for combo, rid in zip(self.secondary_rune_combos, secondary_ids):
+        for combo, rid in zip(self.secondary_rune_combos, secondary_ids, strict=False):
             for idx in range(combo.count()):
                 data = combo.itemData(idx)
                 if isinstance(data, dict) and _safe_int(data.get("id")) == rid:
                     combo.setCurrentIndex(idx)
                     break
 
-        for combo, rid in zip(self.shard_combos, shard_ids):
+        for combo, rid in zip(self.shard_combos, shard_ids, strict=False):
             idx = combo.findData(rid)
             if idx >= 0:
                 combo.setCurrentIndex(idx)
 
     def _on_delete(self) -> None:
-        if QMessageBox.question(
-            self,
-            "Remove Custom",
-            "Remove the saved custom rune page for this champion?",
-        ) != QMessageBox.StandardButton.Yes:
+        if (
+            QMessageBox.question(
+                self,
+                "Remove Custom",
+                "Remove the saved custom rune page for this champion?",
+            )
+            != QMessageBox.StandardButton.Yes
+        ):
             return
         self.action = "delete"
         self.accept()

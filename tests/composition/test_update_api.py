@@ -9,8 +9,17 @@ from rune_pilot.composition.api_app import create_app
 
 
 def release():
-    return {"tag_name": "v2.0", "body": "Changes", "html_url": "https://github.com/test/app/releases/tag/v2.0",
-            "assets": [{"name": "Setup.exe", "browser_download_url": "https://github.com/test/app/releases/download/v2.0/Setup.exe"}]}
+    return {
+        "tag_name": "v2.0",
+        "body": "Changes",
+        "html_url": "https://github.com/test/app/releases/tag/v2.0",
+        "assets": [
+            {
+                "name": "Setup.exe",
+                "browser_download_url": "https://github.com/test/app/releases/download/v2.0/Setup.exe",
+            }
+        ],
+    }
 
 
 def test_update_check_registered_download_and_retry_use_one_backend_download():
@@ -24,7 +33,9 @@ def test_update_check_registered_download_and_retry_use_one_backend_download():
         assert info["latest_version"] == "2.0"
         assert client.get("/updates").json()["update"]["update_id"] == info["update_id"]
         path = f"/updates/{info['update_id']}/download"
-        response = client.post(path, json={"url": "http://arbitrary.test/", "dest_path": "C:/private.exe"})
+        response = client.post(
+            path, json={"url": "http://arbitrary.test/", "dest_path": "C:/private.exe"}
+        )
         assert response.status_code == 200
         assert response.json() == {"installer_path": source.download.return_value}
         assert client.post(path).json() == response.json()
@@ -37,10 +48,14 @@ def test_update_check_registered_download_and_retry_use_one_backend_download():
 def test_update_check_silently_handles_offline_disabled_and_current_version():
     source = Mock()
     source.latest_release.side_effect = OSError("private token")
-    with TestClient(create_app(update_service=UpdateService(source, current_version="1.0"))) as client:
+    with TestClient(
+        create_app(update_service=UpdateService(source, current_version="1.0"))
+    ) as client:
         assert client.get("/updates").json() == {"update": None}
     source.latest_release.reset_mock()
-    with TestClient(create_app(update_service=UpdateService(source, current_version="1.0", enabled=False))) as client:
+    with TestClient(
+        create_app(update_service=UpdateService(source, current_version="1.0", enabled=False))
+    ) as client:
         assert client.get("/updates").json() == {"update": None}
     source.latest_release.assert_not_called()
     source.latest_release.side_effect = None
@@ -52,7 +67,9 @@ def test_failed_download_is_sanitized_and_can_be_retried():
     source = Mock()
     source.latest_release.return_value = release()
     source.download.side_effect = OSError("Authorization: private token; C:/private/path")
-    with TestClient(create_app(update_service=UpdateService(source, current_version="1.0"))) as client:
+    with TestClient(
+        create_app(update_service=UpdateService(source, current_version="1.0"))
+    ) as client:
         info = client.get("/updates").json()["update"]
         path = f"/updates/{info['update_id']}/download"
         response = client.post(path)

@@ -1,14 +1,14 @@
 """Headless Qt event loop for controller and window integration checks."""
 
+import gc
 import os
 import time
-import gc
 
 os.environ["QT_QPA_PLATFORM"] = "offscreen"
 
 import pytest
-from PyQt6.QtWidgets import QApplication
 from PyQt6.QtCore import QCoreApplication, QEvent
+from PyQt6.QtWidgets import QApplication
 
 # Keep the application alive until all Qt wrappers have been released, including
 # cycles retained by signal handlers. Destroying it before widgets can crash Qt.
@@ -37,4 +37,5 @@ def wait_until(qt_app):
                 pytest.fail("Timed out waiting for Qt/background operation")
             time.sleep(0.005)
         qt_app.processEvents()
+
     return wait

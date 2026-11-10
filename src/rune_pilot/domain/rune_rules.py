@@ -3,7 +3,7 @@
 import re
 from typing import Any
 
-from rune_pilot.domain.constants import STYLE_ID_BY_NAME, MAX_RUNE_PAGE_NAME_LEN
+from rune_pilot.domain.constants import MAX_RUNE_PAGE_NAME_LEN, STYLE_ID_BY_NAME
 from rune_pilot.shared.utils import safe_int_list
 
 
@@ -42,7 +42,12 @@ def recommended_page(champ_id: int, runes_data: dict, slug: str | None) -> dict 
 
     # Format 1: direct champId -> payload
     direct = runes_data.get(str(champ_id))
-    if isinstance(direct, dict) and "primaryStyleId" in direct and "subStyleId" in direct and "selectedPerkIds" in direct:
+    if (
+        isinstance(direct, dict)
+        and "primaryStyleId" in direct
+        and "subStyleId" in direct
+        and "selectedPerkIds" in direct
+    ):
         try:
             primary_style_id = int(direct.get("primaryStyleId"))
             sub_style_id = int(direct.get("subStyleId"))
@@ -53,7 +58,11 @@ def recommended_page(champ_id: int, runes_data: dict, slug: str | None) -> dict 
         if len(selected) != 9:
             return None
 
-        return {"primaryStyleId": primary_style_id, "subStyleId": sub_style_id, "selectedPerkIds": selected}
+        return {
+            "primaryStyleId": primary_style_id,
+            "subStyleId": sub_style_id,
+            "selectedPerkIds": selected,
+        }
 
     # Format 2: slug -> rune_1 -> tree lists
     if not slug:

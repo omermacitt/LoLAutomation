@@ -5,8 +5,8 @@ LCU-dependent functions are in application/champion_query.py.
 
 from __future__ import annotations
 
-from typing import Any
 from collections.abc import Mapping, Sequence
+from typing import Any
 
 from rune_pilot.domain.constants import SUMMONER_SPELLS
 

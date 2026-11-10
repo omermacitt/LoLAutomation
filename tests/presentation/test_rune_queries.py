@@ -59,18 +59,25 @@ def rune_api(qt_app):
 
 def test_presets_load_one_catalog_restore_pages_and_keep_edits_during_icons(rune_api, wait_until):
     original = {
-        "name": "Saved", "primaryStyleId": 8000, "subStyleId": 8100,
+        "name": "Saved",
+        "primaryStyleId": 8000,
+        "subStyleId": 8100,
         "selectedPerkIds": [8002, 8012, 8022, 8032, 8111, 8121, 5008, 5002, 5003],
     }
     saved = []
     dialog = RunePresetsDialog(
-        champion_id=266, champion_name="Aatrox", existing_presets={"1": original},
+        champion_id=266,
+        champion_name="Aatrox",
+        existing_presets={"1": original},
         on_save_preset=lambda slot, page: saved.append((slot, page)),
-        on_delete_preset=lambda slot: None, api_client=rune_api,
+        on_delete_preset=lambda slot: None,
+        api_client=rune_api,
     )
     try:
         assert not dialog.save_btn.isEnabled()
-        assert all(not editor.primary_style_combo.isEnabled() for editor in dialog._editors.values())
+        assert all(
+            not editor.primary_style_combo.isEnabled() for editor in dialog._editors.values()
+        )
         rune_api.catalog_gate.set()
         wait_until(lambda: dialog.save_btn.isEnabled())
         assert rune_api.loads == 1

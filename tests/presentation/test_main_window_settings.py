@@ -5,16 +5,20 @@ import threading
 import pytest
 from PyQt6.QtWidgets import QSystemTrayIcon
 
-from rune_pilot.domain.user_config import UserConfig
 from rune_pilot.domain.game_data import ChampionCatalog, ChampionOption, GameflowStatus
+from rune_pilot.domain.user_config import UserConfig
 from rune_pilot.presentation import main_window as module
-from rune_pilot.presentation.controllers.automation_controller import AutomationController, STATE_STOPPED
-from rune_pilot.presentation.controllers.update_controller import UpdateController
 from rune_pilot.presentation.api_client import ApiError
+from rune_pilot.presentation.controllers.automation_controller import (
+    STATE_STOPPED,
+    AutomationController,
+)
+from rune_pilot.presentation.controllers.update_controller import UpdateController
 
 
 def test_desktop_opens_configuration_directly_without_a_login_launcher(qt_app, monkeypatch):
     from unittest.mock import Mock
+
     app = Mock()
     app.exec.return_value = 0
     window = Mock()
@@ -45,12 +49,21 @@ class WindowApi:
         self.phase = None
         self.phase_calls = 0
         self.catalog = ChampionCatalog(
-            all_champions=[ChampionOption(id=266, name="Aatrox"), ChampionOption(id=1, name="Annie")],
-            pickable_champions=[ChampionOption(id=266, name="Aatrox"), ChampionOption(id=1, name="Annie")],
+            all_champions=[
+                ChampionOption(id=266, name="Aatrox"),
+                ChampionOption(id=1, name="Annie"),
+            ],
+            pickable_champions=[
+                ChampionOption(id=266, name="Aatrox"),
+                ChampionOption(id=1, name="Annie"),
+            ],
         )
         self.config = UserConfig(
-            queue_name="Ranked Flex", primary_role_name="Mid", secondary_role_name="Jungle",
-            role_champions_ui={"TOP": [266, None, 1]}, role_bans_ui={"TOP": 1},
+            queue_name="Ranked Flex",
+            primary_role_name="Mid",
+            secondary_role_name="Jungle",
+            role_champions_ui={"TOP": [266, None, 1]},
+            role_bans_ui={"TOP": 1},
         )
 
     def load_settings(self):
@@ -85,7 +98,11 @@ class WindowApi:
 @pytest.fixture
 def window(qt_app, monkeypatch, request):
     monkeypatch.setattr(module.QMessageBox, "critical", lambda *args: None)
-    monkeypatch.setattr(module.MainWindow, "_build_tray_icon", lambda self: setattr(self, "tray_icon", QSystemTrayIcon(self)))
+    monkeypatch.setattr(
+        module.MainWindow,
+        "_build_tray_icon",
+        lambda self: setattr(self, "tray_icon", QSystemTrayIcon(self)),
+    )
     monkeypatch.setattr(AutomationController, "start_polling", lambda self: None)
     monkeypatch.setattr(UpdateController, "schedule_check", lambda self: None)
     api = WindowApi()
@@ -231,6 +248,7 @@ def test_empty_pick_list_preserves_saved_ids_as_disabled_options(window, wait_un
 
 def test_game_started_toast_is_once_across_game_start_and_in_progress(window, wait_until):
     from unittest.mock import Mock
+
     view, api = window
     view.notifier = Mock()
     view._on_game_phase(GameflowStatus(phase="GameStart"))
@@ -241,6 +259,7 @@ def test_game_started_toast_is_once_across_game_start_and_in_progress(window, wa
 
 def test_gameflow_poll_does_not_block_or_overlap(window, wait_until):
     from unittest.mock import Mock
+
     view, api = window
     view.phase_timer.stop()
     view.notifier = Mock()

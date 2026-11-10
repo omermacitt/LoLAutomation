@@ -5,16 +5,16 @@ from __future__ import annotations
 from fastapi import Depends, FastAPI, Header, HTTPException, Path, Request, Response
 
 from rune_pilot.application.automation_service import AutomationService
-from rune_pilot.application.champion_query import ChampionQuery
 from rune_pilot.application.champion_portrait_query import ChampionPortraitQuery
-from rune_pilot.application.skin_artwork_query import SkinArtworkQuery
-from rune_pilot.application.rune_editor_service import RuneEditorService
+from rune_pilot.application.champion_query import ChampionQuery
 from rune_pilot.application.config_service import ConfigConflict, ConfigService
 from rune_pilot.application.game_query_service import GameQueryService, QueryUnavailable
-from rune_pilot.domain.game_data import ChampionCatalog, GameflowStatus, RuneCatalog, SkinOptions
-from rune_pilot.domain.rune_editor import RuneEditorCatalog, RunePage, RuneRecommendation
-from rune_pilot.domain.models import AutomationConfig
+from rune_pilot.application.rune_editor_service import RuneEditorService
+from rune_pilot.application.skin_artwork_query import SkinArtworkQuery
 from rune_pilot.domain.champion_service import DuplicateChampionChoices
+from rune_pilot.domain.game_data import ChampionCatalog, GameflowStatus, RuneCatalog, SkinOptions
+from rune_pilot.domain.models import AutomationConfig
+from rune_pilot.domain.rune_editor import RuneEditorCatalog, RunePage, RuneRecommendation
 from rune_pilot.domain.user_config import UserConfig
 from rune_pilot.shared.app_meta import __version__
 
@@ -55,6 +55,7 @@ def register_routes(app: FastAPI) -> None:
     @app.exception_handler(QueryUnavailable)
     async def query_unavailable(_request: Request, error: QueryUnavailable):
         from fastapi.responses import JSONResponse
+
         return JSONResponse(status_code=503, content={"detail": str(error)})
 
     @app.get("/champion-catalog", response_model=ChampionCatalog)
@@ -66,27 +67,52 @@ def register_routes(app: FastAPI) -> None:
         return service.gameflow()
 
     @app.get("/champions/{champion_id}/portrait")
-    def champion_portrait(champion_id: int = Path(gt=0), service: ChampionPortraitQuery = Depends(get_champion_portraits)):
+    def champion_portrait(
+        champion_id: int = Path(gt=0),
+        service: ChampionPortraitQuery = Depends(get_champion_portraits),
+    ):
         data = service.portrait(champion_id)
         if data is None:
-            raise HTTPException(status_code=404, detail="Champion portrait unavailable", headers={"Cache-Control": "no-store"})
-        return Response(content=data, media_type="image/png", headers={
-            "Cache-Control": "private, max-age=300", "X-Content-Type-Options": "nosniff",
-        })
+            raise HTTPException(
+                status_code=404,
+                detail="Champion portrait unavailable",
+                headers={"Cache-Control": "no-store"},
+            )
+        return Response(
+            content=data,
+            media_type="image/png",
+            headers={
+                "Cache-Control": "private, max-age=300",
+                "X-Content-Type-Options": "nosniff",
+            },
+        )
 
     @app.get("/champions/{champion_id}/skins", response_model=SkinOptions)
     def skins(champion_id: int = Path(gt=0), service: GameQueryService = Depends(get_game_queries)):
         return service.skins(champion_id)
 
     @app.get("/champions/{champion_id}/skins/{skin_id}/artwork")
-    def skin_artwork(champion_id: int = Path(gt=0), skin_id: int = Path(gt=0), service: SkinArtworkQuery = Depends(get_skin_artwork)):
+    def skin_artwork(
+        champion_id: int = Path(gt=0),
+        skin_id: int = Path(gt=0),
+        service: SkinArtworkQuery = Depends(get_skin_artwork),
+    ):
         artwork = service.artwork(champion_id, skin_id)
         if artwork is None:
-            raise HTTPException(status_code=404, detail="Skin artwork unavailable", headers={"Cache-Control": "no-store"})
+            raise HTTPException(
+                status_code=404,
+                detail="Skin artwork unavailable",
+                headers={"Cache-Control": "no-store"},
+            )
         data, media_type = artwork
-        return Response(content=data, media_type=media_type, headers={
-            "Cache-Control": "private, max-age=300", "X-Content-Type-Options": "nosniff",
-        })
+        return Response(
+            content=data,
+            media_type=media_type,
+            headers={
+                "Cache-Control": "private, max-age=300",
+                "X-Content-Type-Options": "nosniff",
+            },
+        )
 
     @app.get("/runes/catalog", response_model=RuneCatalog)
     def rune_catalog(service: GameQueryService = Depends(get_game_queries)):
@@ -97,7 +123,9 @@ def register_routes(app: FastAPI) -> None:
         return service.catalog()
 
     @app.get("/champions/{champion_id}/runes/recommended", response_model=RuneRecommendation)
-    def recommended_runes(champion_id: int = Path(gt=0), service: RuneEditorService = Depends(get_rune_editor)):
+    def recommended_runes(
+        champion_id: int = Path(gt=0), service: RuneEditorService = Depends(get_rune_editor)
+    ):
         return service.recommendation(champion_id)
 
     @app.post("/runes/validate", response_model=RunePage)
@@ -105,21 +133,31 @@ def register_routes(app: FastAPI) -> None:
         try:
             return service.validate(page)
         except ValueError as error:
-            raise HTTPException(status_code=422, detail="Rune page is incompatible with the current catalog") from error
+            raise HTTPException(
+                status_code=422, detail="Rune page is incompatible with the current catalog"
+            ) from error
 
     @app.get("/runes/icons/{perk_id}")
     def rune_icon(perk_id: int = Path(gt=0), service: GameQueryService = Depends(get_game_queries)):
         data = service.icon(perk_id)
         if data is None:
             raise HTTPException(status_code=404, detail="Rune icon unavailable")
-        return Response(content=data, media_type="image/png", headers={"Cache-Control": "private, max-age=300", "X-Content-Type-Options": "nosniff"})
+        return Response(
+            content=data,
+            media_type="image/png",
+            headers={"Cache-Control": "private, max-age=300", "X-Content-Type-Options": "nosniff"},
+        )
 
     @app.get("/health")
     def health(service: AutomationService = Depends(get_automation_service)):
         """Simple health-check endpoint."""
         running = service.is_running
-        return {"status": "ok", "running": running, "version": __version__,
-                "selection": app.state.selection_feedback.read() if running else None}
+        return {
+            "status": "ok",
+            "running": running,
+            "version": __version__,
+            "selection": app.state.selection_feedback.read() if running else None,
+        }
 
     @app.get("/champions")
     def champions(service: ChampionQuery = Depends(get_champion_query)):
@@ -127,7 +165,9 @@ def register_routes(app: FastAPI) -> None:
         return service.get_champions()
 
     @app.get("/settings", response_model=UserConfig)
-    def settings(response: Response, service: ConfigService = Depends(get_config_service)) -> UserConfig:
+    def settings(
+        response: Response, service: ConfigService = Depends(get_config_service)
+    ) -> UserConfig:
         config = service.load()
         response.headers["ETag"] = service.revision(config)
         response.headers["Cache-Control"] = "no-store"
@@ -143,7 +183,9 @@ def register_routes(app: FastAPI) -> None:
         try:
             saved = service.save(config, expected_revision=if_match)
         except ConfigConflict as error:
-            raise HTTPException(status_code=412, detail="Settings changed in another window") from error
+            raise HTTPException(
+                status_code=412, detail="Settings changed in another window"
+            ) from error
         except DuplicateChampionChoices as error:
             raise HTTPException(status_code=422, detail=str(error)) from error
         if not saved:

@@ -38,7 +38,9 @@ class UpdateService:
             return None
         with self._lock:
             for existing in self._offers.values():
-                if existing.model_dump(exclude={"update_id"}) == info.model_dump(exclude={"update_id"}):
+                if existing.model_dump(exclude={"update_id"}) == info.model_dump(
+                    exclude={"update_id"}
+                ):
                     return existing.model_copy(deep=True)
             info.update_id = str(uuid4())
             self._offers[info.update_id] = info

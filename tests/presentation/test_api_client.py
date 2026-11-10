@@ -5,10 +5,10 @@ from unittest.mock import Mock
 import pytest
 import requests
 
+from rune_pilot.domain.game_data import ChampionCatalog, GameflowStatus, RuneCatalog, SkinOptions
+from rune_pilot.domain.update import UpdateDownload, UpdateInfo
 from rune_pilot.domain.user_config import UserConfig
 from rune_pilot.presentation.api_client import ApiClient, ApiError
-from rune_pilot.domain.game_data import ChampionCatalog, GameflowStatus, RuneCatalog, SkinOptions
-from rune_pilot.domain.update import UpdateInfo, UpdateDownload
 
 
 def test_update_client_validates_contract_and_uses_backend_download_with_long_timeout(monkeypatch):
@@ -44,7 +44,9 @@ def test_settings_client_uses_validated_wire_contract(monkeypatch):
     assert client.load_settings() == config
     request.assert_called_with("GET", "http://example.test/settings", json=None, timeout=1)
     assert client.save_settings(config) == config
-    request.assert_called_with("PUT", "http://example.test/settings", json=config.to_raw(), timeout=1)
+    request.assert_called_with(
+        "PUT", "http://example.test/settings", json=config.to_raw(), timeout=1
+    )
 
 
 def test_settings_client_preserves_revision_for_conditional_writes(monkeypatch):
@@ -61,7 +63,9 @@ def test_settings_client_preserves_revision_for_conditional_writes(monkeypatch):
     assert request.call_args.kwargs["headers"] == {"If-Match": '"second"'}
 
 
-def test_settings_client_recovers_a_lost_successful_write_without_overwriting_other_changes(monkeypatch):
+def test_settings_client_recovers_a_lost_successful_write_without_overwriting_other_changes(
+    monkeypatch,
+):
     original = UserConfig()
     saved = UserConfig(queue_name="Normal Draft")
     latest = UserConfig(queue_name="Ranked Flex")
@@ -71,7 +75,14 @@ def test_settings_client_recovers_a_lost_successful_write_without_overwriting_ot
         result.json.return_value = config.to_raw()
         return result
 
-    request = Mock(side_effect=[response(original, '"a"'), requests.ReadTimeout(), response(saved, '"b"'), response(latest, '"c"')])
+    request = Mock(
+        side_effect=[
+            response(original, '"a"'),
+            requests.ReadTimeout(),
+            response(saved, '"b"'),
+            response(latest, '"c"'),
+        ]
+    )
     monkeypatch.setattr(requests, "request", request)
     client = ApiClient()
     client.load_settings()
@@ -81,7 +92,9 @@ def test_settings_client_recovers_a_lost_successful_write_without_overwriting_ot
     assert request.call_args.kwargs["headers"] == {"If-Match": '"b"'}
 
 
-@pytest.mark.parametrize("body", [None, [], {}, {"status": "ok"}, {**UserConfig().to_raw(), "role_champions_ui": "bad"}])
+@pytest.mark.parametrize(
+    "body", [None, [], {}, {"status": "ok"}, {**UserConfig().to_raw(), "role_champions_ui": "bad"}]
+)
 def test_malformed_response_is_not_defaults(monkeypatch, body):
     response = Mock(status_code=200)
     response.json.return_value = body
@@ -109,15 +122,33 @@ def test_network_error_and_save_error_are_reported(monkeypatch):
         ApiClient().save_settings(UserConfig())
 
 
-@pytest.mark.parametrize("method,args,path,model,body", [
-    ("champion_catalog", (), "/champion-catalog", ChampionCatalog,
-     {"all_champions": [{"id": 266, "name": "Aatrox"}], "pickable_champions": []}),
-    ("gameflow", (), "/gameflow", GameflowStatus, {"phase": None}),
-    ("skin_options", (266,), "/champions/266/skins", SkinOptions,
-     {"champion_id": 266, "skins": [{"id": 266000, "name": "Default"}]}),
-    ("rune_catalog", (), "/runes/catalog", RuneCatalog,
-     {"styles": [{"id": 8000}], "perks": [{"id": 8005}]}),
-])
+@pytest.mark.parametrize(
+    "method,args,path,model,body",
+    [
+        (
+            "champion_catalog",
+            (),
+            "/champion-catalog",
+            ChampionCatalog,
+            {"all_champions": [{"id": 266, "name": "Aatrox"}], "pickable_champions": []},
+        ),
+        ("gameflow", (), "/gameflow", GameflowStatus, {"phase": None}),
+        (
+            "skin_options",
+            (266,),
+            "/champions/266/skins",
+            SkinOptions,
+            {"champion_id": 266, "skins": [{"id": 266000, "name": "Default"}]},
+        ),
+        (
+            "rune_catalog",
+            (),
+            "/runes/catalog",
+            RuneCatalog,
+            {"styles": [{"id": 8000}], "perks": [{"id": 8005}]},
+        ),
+    ],
+)
 def test_game_queries_use_typed_contracts(monkeypatch, method, args, path, model, body):
     response = Mock(status_code=200)
     response.json.return_value = body
@@ -130,7 +161,10 @@ def test_game_queries_use_typed_contracts(monkeypatch, method, args, path, model
     assert get.call_args.kwargs["timeout"] > 3
 
 
-@pytest.mark.parametrize("method,args", [("champion_catalog", ()), ("gameflow", ()), ("skin_options", (266,)), ("rune_catalog", ())])
+@pytest.mark.parametrize(
+    "method,args",
+    [("champion_catalog", ()), ("gameflow", ()), ("skin_options", (266,)), ("rune_catalog", ())],
+)
 def test_incomplete_game_responses_are_errors(monkeypatch, method, args):
     response = Mock(status_code=200)
     response.json.return_value = {}

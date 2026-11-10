@@ -17,7 +17,11 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
-from rune_pilot.domain.champion_service import normalize_champion_id, spell_id_from_any, unique_champion_slots
+from rune_pilot.domain.champion_service import (
+    normalize_champion_id,
+    spell_id_from_any,
+    unique_champion_slots,
+)
 from rune_pilot.domain.constants import ROLE_KEYS
 
 RUNE_SLOTS: tuple[str, ...] = ("1", "2", "3")
@@ -110,7 +114,9 @@ def _clean_role_champions(raw: Any) -> dict[str, list[int | None]]:
     for role_key, champ_ids in _as_dict(raw).items():
         if str(role_key) not in ROLE_KEYS or not isinstance(champ_ids, (list, tuple)):
             continue
-        result[str(role_key)] = unique_champion_slots([normalize_champion_id(cid) for cid in champ_ids])
+        result[str(role_key)] = unique_champion_slots(
+            [normalize_champion_id(cid) for cid in champ_ids]
+        )
     return result
 
 
@@ -218,10 +224,12 @@ class UserConfig(BaseModel):
     # role -> champId(str) -> skinId
     custom_skins: dict[str, dict[str, int]] = Field(default_factory=dict)
     # role -> champId(str) -> {"spell1Id", "spell2Id"}
-    custom_summoner_spells: dict[str, dict[str, dict[str, int | None]]] = Field(default_factory=dict)
+    custom_summoner_spells: dict[str, dict[str, dict[str, int | None]]] = Field(
+        default_factory=dict
+    )
 
     @classmethod
-    def from_raw(cls, data: Any) -> "UserConfig":
+    def from_raw(cls, data: Any) -> UserConfig:
         """Parses a raw config dict, migrating any legacy shape it finds."""
         data = _as_dict(data)
 

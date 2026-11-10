@@ -23,7 +23,10 @@ def test_legacy_champion_list_and_name_cache_exclude_classic_variants():
     assert query.get_champion_slug_by_id(60266) is None
 
 
-@pytest.mark.parametrize("name,operation", [("get_champion_summary", "champion_summary"), ("get_owned_champions_raw", "owned_champions")])
+@pytest.mark.parametrize(
+    "name,operation",
+    [("get_champion_summary", "champion_summary"), ("get_owned_champions_raw", "owned_champions")],
+)
 def test_strict_champion_reads_report_bad_responses(name, operation):
     response = Mock(status_code=500)
     response.raise_for_status.side_effect = requests.HTTPError("unavailable")

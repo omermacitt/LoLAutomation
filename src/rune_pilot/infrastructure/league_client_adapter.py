@@ -45,7 +45,9 @@ class LcuLeagueClient:
         return self._request("POST", "/lol-lobby/v2/lobby", {"queueId": int(queue_id)})
 
     def set_position_preferences(self, preferences: dict) -> ClientReply:
-        return self._request("PUT", "/lol-lobby/v2/lobby/members/localMember/position-preferences", preferences)
+        return self._request(
+            "PUT", "/lol-lobby/v2/lobby/members/localMember/position-preferences", preferences
+        )
 
     def matchmaking_search_state(self) -> ClientReply:
         return self._request("GET", "/lol-lobby/v2/lobby/matchmaking/search-state")
@@ -66,8 +68,11 @@ class LcuLeagueClient:
         return self._request("GET", "/lol-champ-select/v1/pickable-champion-ids")
 
     def complete_action(self, action_id: int, champion_id: int) -> ClientReply:
-        return self._request("PATCH", f"/lol-champ-select/v1/session/actions/{action_id}",
-                             {"championId": champion_id, "completed": True})
+        return self._request(
+            "PATCH",
+            f"/lol-champ-select/v1/session/actions/{action_id}",
+            {"championId": champion_id, "completed": True},
+        )
 
     def rune_pages(self) -> ClientReply:
         return self._request("GET", "/lol-perks/v1/pages")

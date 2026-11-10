@@ -1,7 +1,7 @@
 """Load recommendation data and champion identity, then apply pure rune rules."""
 
-from rune_pilot.application.ports.rune_data import RuneDataSource
 from rune_pilot.application.champion_query import ChampionQuery
+from rune_pilot.application.ports.rune_data import RuneDataSource
 from rune_pilot.domain.rune_rules import recommended_page
 
 

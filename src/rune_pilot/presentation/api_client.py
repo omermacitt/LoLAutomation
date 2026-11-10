@@ -19,9 +19,9 @@ from urllib.parse import quote
 import requests
 from pydantic import BaseModel, ValidationError
 
-from rune_pilot.domain.user_config import UserConfig
 from rune_pilot.domain.game_data import ChampionCatalog, GameflowStatus, RuneCatalog, SkinOptions
 from rune_pilot.domain.update import UpdateCheck, UpdateDownload, UpdateInfo
+from rune_pilot.domain.user_config import UserConfig
 
 DEFAULT_BASE_URL = "http://127.0.0.1:8000"
 DEFAULT_TIMEOUT_SEC = 3.0
@@ -110,7 +110,9 @@ class ApiClient:
     def download_update(self, update_id: str) -> UpdateDownload:
         path = f"/updates/{quote(update_id, safe='')}/download"
         try:
-            response = requests.post(self._url(path), timeout=max(self.timeout, UPDATE_DOWNLOAD_TIMEOUT_SEC))
+            response = requests.post(
+                self._url(path), timeout=max(self.timeout, UPDATE_DOWNLOAD_TIMEOUT_SEC)
+            )
         except requests.RequestException as error:
             raise ApiError("Update download request failed") from error
         if response.status_code != 200:
@@ -159,11 +161,15 @@ class ApiClient:
         return self._settings_request("PUT", config.to_raw())
 
     def _settings_request(
-        self, method: str, payload: dict[str, Any] | None = None,
+        self,
+        method: str,
+        payload: dict[str, Any] | None = None,
     ) -> UserConfig:
         if method == "PUT" and self._uncertain_settings is not None:
             try:
-                current = requests.request("GET", self._url("/settings"), json=None, timeout=self.timeout)
+                current = requests.request(
+                    "GET", self._url("/settings"), json=None, timeout=self.timeout
+                )
                 if current.status_code != 200:
                     raise ApiError(self._describe(current))
                 body = current.json()
@@ -172,7 +178,10 @@ class ApiClient:
                 config = UserConfig.model_validate(body)
                 revision = getattr(current, "headers", {}).get("ETag")
                 if config != self._uncertain_settings and revision != self._settings_revision:
-                    raise ApiError("Settings changed in another window; local changes were retained", status_code=412)
+                    raise ApiError(
+                        "Settings changed in another window; local changes were retained",
+                        status_code=412,
+                    )
                 self._settings_revision = revision if isinstance(revision, str) else None
                 self._uncertain_settings = None
             except (requests.RequestException, ValueError) as error:
@@ -182,7 +191,10 @@ class ApiClient:
             options["headers"] = {"If-Match": self._settings_revision}
         try:
             resp = requests.request(
-                method, self._url("/settings"), json=payload, timeout=self.timeout,
+                method,
+                self._url("/settings"),
+                json=payload,
+                timeout=self.timeout,
                 **options,
             )
         except requests.RequestException as e:

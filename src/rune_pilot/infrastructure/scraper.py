@@ -10,9 +10,10 @@ import re
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.support.ui import WebDriverWait
 
+from rune_pilot.domain.champion_service import champion_slug_from_alias
 from rune_pilot.infrastructure.lcu_client import lcu_request
 
 
@@ -24,9 +25,7 @@ def extract_selected_rune_ids(container):
     """
     rune_ids = []
 
-    flex_rows = container.find_elements(
-        By.CSS_SELECTOR, "div.flex.w-full.justify-between"
-    )
+    flex_rows = container.find_elements(By.CSS_SELECTOR, "div.flex.w-full.justify-between")
 
     for flex in flex_rows:
         choices = flex.find_elements(By.CSS_SELECTOR, "div.py-1.text-center")
@@ -86,14 +85,8 @@ def champion_slug(champion: dict) -> str:
     Returns the champion slug used in OP.GG URLs.
     Base logic: lowercase the alias; add special-case mappings here if needed.
     """
-    alias = (champion.get("alias") or champion.get("name") or "").strip()
-    special = {
-        "MonkeyKing": "wukong",
-        "FiddleSticks": "fiddlesticks",
-    }
-    if alias in special:
-        return special[alias]
-    return alias.lower()
+    alias = champion.get("alias") or champion.get("name") or ""
+    return champion_slug_from_alias(str(alias))
 
 
 def scrape_runes_for_champion(driver: webdriver.Chrome, slug: str) -> dict:
@@ -105,20 +98,16 @@ def scrape_runes_for_champion(driver: webdriver.Chrome, slug: str) -> dict:
 
     driver.get(url)
 
-    base_xpath = (
-        "/html/body/div[9]/main/div/div[2]/section/section[2]/div[2]/div/table/tbody/tr"
-    )
+    base_xpath = "/html/body/div[9]/main/div/div[2]/section/section[2]/div[2]/div/table/tbody/tr"
 
-    WebDriverWait(driver, 15).until(
-        EC.presence_of_all_elements_located((By.XPATH, base_xpath))
-    )
+    WebDriverWait(driver, 15).until(EC.presence_of_all_elements_located((By.XPATH, base_xpath)))
 
     rows = driver.find_elements(By.XPATH, base_xpath)
 
     result: dict[str, dict] = {}
 
     for i, row in enumerate(rows, start=1):
-        lines = [l.strip() for l in row.text.splitlines() if l.strip()]
+        lines = [line.strip() for line in row.text.splitlines() if line.strip()]
 
         primary = lines[0] if len(lines) > 0 else ""
         secondary = lines[1] if len(lines) > 1 else ""
@@ -127,9 +116,7 @@ def scrape_runes_for_champion(driver: webdriver.Chrome, slug: str) -> dict:
         game_count = lines[4] if len(lines) > 4 else ""
         win_rate = lines[5] if len(lines) > 5 else ""
 
-        containers = row.find_elements(
-            By.CSS_SELECTOR, "div.relative.box-border"
-        )
+        containers = row.find_elements(By.CSS_SELECTOR, "div.relative.box-border")
 
         primary_runes: list[str] = []
         secondary_runes: list[str] = []

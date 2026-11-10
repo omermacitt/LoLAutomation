@@ -7,7 +7,9 @@ class SkinQuery:
     def __init__(self, client: LeagueClient):
         self._client = client
 
-    def get_skin_options_for_champion(self, champ_id: int, *, strict: bool = False) -> tuple[dict[int, str], set[int]]:
+    def get_skin_options_for_champion(
+        self, champ_id: int, *, strict: bool = False
+    ) -> tuple[dict[int, str], set[int]]:
         """
         Returns skin names and owned skin IDs for a champion.
 

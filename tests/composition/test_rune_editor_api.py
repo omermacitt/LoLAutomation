@@ -16,26 +16,50 @@ def metadata():
     styles = []
     for sid in (8000, 8100):
         rows = [[sid + 1, sid + 2], [sid + 11, sid + 12], [sid + 21], [sid + 31]]
-        slots = [{"perks": row, "type": "kKeyStone" if i == 0 else "kMixedRegularSplashable"} for i, row in enumerate(rows)]
-        slots += [{"perks": row, "type": "kStatMod"} for row in ([5008, 5005], [5008, 5001], [5001, 5011])]
-        styles.append({"id": sid, "name": str(sid), "allowedSubStyles": [8000, 8100], "slots": slots,
-                       "iconPath": "perk-images/style.png"})
-    perks = [{"id": rid, "name": f"Rune {rid}", "longDesc": "<b>Damage</b><br> &amp; health"}
-             for rid in {rid for style in styles for row in style["slots"] for rid in row["perks"]}]
+        slots = [
+            {"perks": row, "type": "kKeyStone" if i == 0 else "kMixedRegularSplashable"}
+            for i, row in enumerate(rows)
+        ]
+        slots += [
+            {"perks": row, "type": "kStatMod"} for row in ([5008, 5005], [5008, 5001], [5001, 5011])
+        ]
+        styles.append(
+            {
+                "id": sid,
+                "name": str(sid),
+                "allowedSubStyles": [8000, 8100],
+                "slots": slots,
+                "iconPath": "perk-images/style.png",
+            }
+        )
+    perks = [
+        {"id": rid, "name": f"Rune {rid}", "longDesc": "<b>Damage</b><br> &amp; health"}
+        for rid in {rid for style in styles for row in style["slots"] for rid in row["perks"]}
+    ]
     return styles, perks
 
 
 @pytest.fixture
 def page():
-    return {"name": "My page", "primaryStyleId": 8000, "subStyleId": 8100,
-            "selectedPerkIds": [8001, 8011, 8021, 8031, 8111, 8121, 5008, 5008, 5001]}
+    return {
+        "name": "My page",
+        "primaryStyleId": 8000,
+        "subStyleId": 8100,
+        "selectedPerkIds": [8001, 8011, 8021, 8031, 8111, 8121, 5008, 5008, 5001],
+    }
 
 
 def service(metadata, recommendation=None):
     styles, perks = metadata
-    queries = GameQueryService(champion_summary=lambda: [], owned_champions=lambda: [], gameflow_phase=lambda: None,
-                               skin_options=lambda cid: ({}, set()), perk_styles=lambda: styles,
-                               perks=lambda: perks, perk_icon=lambda path: b"png")
+    queries = GameQueryService(
+        champion_summary=lambda: [],
+        owned_champions=lambda: [],
+        gameflow_phase=lambda: None,
+        skin_options=lambda cid: ({}, set()),
+        perk_styles=lambda: styles,
+        perks=lambda: perks,
+        perk_icon=lambda path: b"png",
+    )
     return RuneEditorService(queries, lambda cid: recommendation), queries
 
 
@@ -62,8 +86,10 @@ def test_embedded_legacy_rows_and_separate_stat_style(metadata):
     styles, perks = deepcopy(metadata)
     stat = {"id": 5000, "slots": styles[0]["slots"][4:]}
     for style in styles:
-        style["perkSlots"] = [{"runes": [{"perkId": rid, "displayName": str(rid)} for rid in row["perks"]]}
-                              for row in style.pop("slots")[:4]]
+        style["perkSlots"] = [
+            {"runes": [{"perkId": rid, "displayName": str(rid)} for rid in row["perks"]]}
+            for row in style.pop("slots")[:4]
+        ]
     catalog = normalize_editor_catalog(styles + [stat], perks)
     assert catalog.styles[0].rows[0][0].id == 8001
     assert catalog.styles[0].shardRows[0][0].id == 5008
@@ -78,15 +104,33 @@ def test_legal_repeat_shards_are_valid(metadata, page, shards):
     assert response.json() == page
 
 
-@pytest.mark.parametrize("change", ["same-style", "same-secondary-row", "secondary-keystone", "wrong-primary-row", "wrong-shard", "missing", "long-name"])
+@pytest.mark.parametrize(
+    "change",
+    [
+        "same-style",
+        "same-secondary-row",
+        "secondary-keystone",
+        "wrong-primary-row",
+        "wrong-shard",
+        "missing",
+        "long-name",
+    ],
+)
 def test_invalid_pages_rejected(metadata, page, change):
-    if change == "same-style": page["subStyleId"] = 8000
-    if change == "same-secondary-row": page["selectedPerkIds"][4:6] = [8111, 8112]
-    if change == "secondary-keystone": page["selectedPerkIds"][4] = 8101
-    if change == "wrong-primary-row": page["selectedPerkIds"][0] = 8011
-    if change == "wrong-shard": page["selectedPerkIds"][8] = 5008
-    if change == "missing": page["selectedPerkIds"].pop()
-    if change == "long-name": page["name"] = "a" * 17
+    if change == "same-style":
+        page["subStyleId"] = 8000
+    if change == "same-secondary-row":
+        page["selectedPerkIds"][4:6] = [8111, 8112]
+    if change == "secondary-keystone":
+        page["selectedPerkIds"][4] = 8101
+    if change == "wrong-primary-row":
+        page["selectedPerkIds"][0] = 8011
+    if change == "wrong-shard":
+        page["selectedPerkIds"][8] = 5008
+    if change == "missing":
+        page["selectedPerkIds"].pop()
+    if change == "long-name":
+        page["name"] = "a" * 17
     with client_for(metadata) as client:
         assert client.post("/runes/validate", json=page).status_code == 422
 
@@ -94,7 +138,8 @@ def test_invalid_pages_rejected(metadata, page, change):
 @pytest.mark.parametrize("state", ["valid", "missing", "outdated"])
 def test_recommendation_explicitly_reports_source_and_unavailable_data(metadata, page, state):
     recommendation = deepcopy(page) if state != "missing" else None
-    if state == "outdated": recommendation["selectedPerkIds"][0] = 999999
+    if state == "outdated":
+        recommendation["selectedPerkIds"][0] = 999999
     with client_for(metadata, recommendation) as client:
         response = client.get("/champions/266/runes/recommended")
     assert response.status_code == 200

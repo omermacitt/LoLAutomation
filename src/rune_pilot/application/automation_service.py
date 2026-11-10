@@ -11,7 +11,8 @@ from rune_pilot.application.automation_state import AutomationSnapshot
 from rune_pilot.domain.champion_service import ensure_unique_role_champions
 
 LoopFn = Callable[
-    [Callable[[], bool], Callable[[], AutomationSnapshot], Callable[[float], bool]], None,
+    [Callable[[], bool], Callable[[], AutomationSnapshot], Callable[[float], bool]],
+    None,
 ]
 
 
@@ -62,8 +63,10 @@ class AutomationService:
             if self._thread is None:
                 self._stop_event = threading.Event()
                 self._thread = threading.Thread(
-                    target=self._run, args=(self._stop_event,),
-                    name="rune-pilot-automation", daemon=True,
+                    target=self._run,
+                    args=(self._stop_event,),
+                    name="rune-pilot-automation",
+                    daemon=True,
                 )
                 self._thread.start()
             # If Stop is still finishing, the same worker starts a fresh invocation
@@ -102,7 +105,9 @@ class AutomationService:
         while True:
             error = None
             try:
-                self._loop(lambda event=stop_event: not event.is_set(), self._snapshot, stop_event.wait)
+                self._loop(
+                    lambda event=stop_event: not event.is_set(), self._snapshot, stop_event.wait
+                )
             except Exception as failure:
                 error = type(failure).__name__
             with self._lock:

@@ -26,10 +26,10 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
+from rune_pilot.domain.constants import SPELL_NAME_BY_ID, SUMMONER_SPELLS
 from rune_pilot.domain.game_data import SkinOptions
 from rune_pilot.presentation.api_client import ApiClient
 from rune_pilot.presentation.controllers.background_query import BackgroundQuery
-from rune_pilot.domain.constants import SPELL_NAME_BY_ID, SUMMONER_SPELLS
 from rune_pilot.presentation.dialogs.rune_presets_dialog import RunePresetsDialog
 from rune_pilot.presentation.dialogs.skins_dialog import SkinSelectDialog
 from rune_pilot.presentation.view_models.selection_model import (
@@ -89,7 +89,8 @@ class RoleTab(QWidget):
         model: ChampionSelectionModel,
         roles_with_champion: Callable[[int], set[str]],
         parent: QWidget | None = None,
-        *, api_client: ApiClient | None = None,
+        *,
+        api_client: ApiClient | None = None,
     ) -> None:
         super().__init__(parent)
         self.role_key = role_key
@@ -156,7 +157,9 @@ class RoleTab(QWidget):
         champion.currentIndexChanged.connect(lambda _=0, i=index: self._on_champion_changed(i))
         spell1.currentIndexChanged.connect(lambda _=0, i=index: self._on_spell_changed(i, "spell1"))
         spell2.currentIndexChanged.connect(lambda _=0, i=index: self._on_spell_changed(i, "spell2"))
-        rune_select.currentIndexChanged.connect(lambda _=0, i=index: self._on_rune_selection_changed(i))
+        rune_select.currentIndexChanged.connect(
+            lambda _=0, i=index: self._on_rune_selection_changed(i)
+        )
         rune_button.clicked.connect(lambda _=False, i=index: self.open_rune_dialog(i))
         skin_button.clicked.connect(lambda _=False, i=index: self.open_skin_dialog(i))
 
@@ -327,7 +330,9 @@ class RoleTab(QWidget):
                 if not isinstance(page, dict):
                     continue
                 name = " ".join(str(page.get("name") or "").split())
-                row.rune_select.addItem(f"Custom {slot}: {name}" if name else f"Custom {slot}", slot)
+                row.rune_select.addItem(
+                    f"Custom {slot}: {name}" if name else f"Custom {slot}", slot
+                )
 
             selected = row.rune_select.findData(self.model.selected_slot(champ_id))
             row.rune_select.setCurrentIndex(selected if selected >= 0 else 0)
@@ -509,7 +514,10 @@ class RoleTab(QWidget):
         )
 
     def _skin_query_failed(self, error: str) -> None:
-        if self._skin_request is not None and self.rows[self._skin_request[0]].champion_id == self._skin_request[1]:
+        if (
+            self._skin_request is not None
+            and self.rows[self._skin_request[0]].champion_id == self._skin_request[1]
+        ):
             QMessageBox.critical(self, "Error", f"Could not retrieve skin list:\n{error}")
 
     def _skin_query_finished(self) -> None:

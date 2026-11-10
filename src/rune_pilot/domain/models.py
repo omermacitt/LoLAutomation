@@ -16,7 +16,9 @@ class AutomationConfig(BaseModel):
     secondary_summoner_spell: str | int | None = None
     role_summoner_spells: dict[str, dict[str, int | None]] = Field(default_factory=dict)
     # role -> champId(str) -> {"spell1Id": int|None, "spell2Id": int|None}
-    custom_summoner_spells: dict[str, dict[str, dict[str, int | None]]] = Field(default_factory=dict)
+    custom_summoner_spells: dict[str, dict[str, dict[str, int | None]]] = Field(
+        default_factory=dict
+    )
     queue_id: int = 420
     role_champions: dict[str, list[int]] = Field(default_factory=dict)
     role_bans: dict[str, int] = Field(default_factory=dict)

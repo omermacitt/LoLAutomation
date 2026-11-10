@@ -7,9 +7,8 @@ Access requires the port and password from the lockfile.
 
 from __future__ import annotations
 
-from typing import Any
-
 import os
+from typing import Any
 
 import requests
 import urllib3
@@ -54,7 +53,7 @@ def get_lcu_credentials(lockfile_path: str | None = None) -> tuple[str, str]:
     Lockfile format: `name:pid:port:password:protocol`
     """
     path = lockfile_path or find_lockfile_path()
-    with open(path, "r", encoding="utf-8", errors="replace") as f:
+    with open(path, encoding="utf-8", errors="replace") as f:
         parts = f.read().strip().split(":")
 
     if len(parts) < 4:

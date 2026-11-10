@@ -35,8 +35,10 @@ from PyQt6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
-from rune_pilot.domain.game_data import ChampionCatalog, GameflowStatus
+
 from rune_pilot.domain.constants import QUEUE_MODES, ROLES
+from rune_pilot.domain.game_data import ChampionCatalog, GameflowStatus
+from rune_pilot.domain.update import UpdateInfo
 from rune_pilot.domain.user_config import UserConfig
 from rune_pilot.presentation.api_client import ApiClient
 from rune_pilot.presentation.controllers.automation_controller import (
@@ -48,17 +50,19 @@ from rune_pilot.presentation.controllers.automation_controller import (
     STATE_STOPPING,
     AutomationController,
 )
-from rune_pilot.presentation.controllers.update_controller import UpdateController
-from rune_pilot.presentation.controllers.settings_controller import SettingsController
 from rune_pilot.presentation.controllers.background_query import BackgroundQuery
+from rune_pilot.presentation.controllers.settings_controller import SettingsController
+from rune_pilot.presentation.controllers.update_controller import UpdateController
 from rune_pilot.presentation.notifications import DesktopNotifier
 from rune_pilot.presentation.styles import STYLESHEET
 from rune_pilot.presentation.view_models.selection_model import ChampionSelectionModel
 from rune_pilot.presentation.views.role_tab import RoleTab
-from rune_pilot.presentation.widgets.combo_utils import set_all_combo_items_enabled, set_combo_item_enabled
+from rune_pilot.presentation.widgets.combo_utils import (
+    set_all_combo_items_enabled,
+    set_combo_item_enabled,
+)
 from rune_pilot.shared.app_meta import APP_DISPLAY_NAME, APP_ID, __version__
 from rune_pilot.shared.resource import resource_path
-from rune_pilot.domain.update import UpdateInfo
 
 DEFAULT_QUEUE_ID = 420
 NONE_ROLE_LABEL = "None"
@@ -102,7 +106,15 @@ _STATE_VISUALS: dict[str, _StateVisuals] = {
         "Starting…", "wait", False, "Stop", "stop", False, "Status: Starting…", "Starting…", True
     ),
     STATE_STOPPING: _StateVisuals(
-        "Running", "running", False, "Stopping…", "wait", False, "Status: Stopping…", "Stopping…", True
+        "Running",
+        "running",
+        False,
+        "Stopping…",
+        "wait",
+        False,
+        "Status: Stopping…",
+        "Stopping…",
+        True,
     ),
     STATE_CHECKING: _StateVisuals(
         "Start", "play", True, "Stop", "stop", False, "Status: Checking…", "Checking…", True
@@ -174,7 +186,13 @@ class MainWindow(QMainWindow):
         self.tabs = QTabWidget()
         self.role_tabs: dict[str, RoleTab] = {}
         for display_name, role_key in ROLE_TABS:
-            tab = RoleTab(role_key, self.model, self._roles_with_champion, parent=self, api_client=self._client)
+            tab = RoleTab(
+                role_key,
+                self.model,
+                self._roles_with_champion,
+                parent=self,
+                api_client=self._client,
+            )
             self.tabs.addTab(tab, display_name)
             self.role_tabs[role_key] = tab
         layout.addWidget(self.tabs)
@@ -379,7 +397,9 @@ class MainWindow(QMainWindow):
             secondary = self.secondary_role_combo.currentText()
             if primary != NONE_ROLE_LABEL and primary == secondary:
                 # Clear whichever one the user did not just touch.
-                other = self.secondary_role_combo if changed == "primary" else self.primary_role_combo
+                other = (
+                    self.secondary_role_combo if changed == "primary" else self.primary_role_combo
+                )
                 other.setCurrentText(NONE_ROLE_LABEL)
             self._refresh_role_preference_exclusion()
         finally:
@@ -402,7 +422,11 @@ class MainWindow(QMainWindow):
         if self._closing:
             return
         # Take the latest edits when the response arrives, not when refresh starts.
-        config = self._current_config() if self._champions_loaded and self.settings.ready else self._loaded_config
+        config = (
+            self._current_config()
+            if self._champions_loaded and self.settings.ready
+            else self._loaded_config
+        )
         self._champion_names = {item.id: item.name for item in catalog.all_champions}
         ban_entries = [(item.id, item.name) for item in catalog.all_champions]
         pick_entries = [(item.id, item.name) for item in catalog.pickable_champions]
@@ -424,9 +448,7 @@ class MainWindow(QMainWindow):
         self.champion_status.setToolTip(error)
 
     def _roles_with_champion(self, champ_id: int) -> set[str]:
-        return {
-            role_key for role_key, tab in self.role_tabs.items() if tab.has_champion(champ_id)
-        }
+        return {role_key for role_key, tab in self.role_tabs.items() if tab.has_champion(champ_id)}
 
     def _refresh_tabs(self) -> None:
         for tab in self.role_tabs.values():
@@ -458,9 +480,13 @@ class MainWindow(QMainWindow):
                     if ban is not None and tab.ban_combo.findData(ban) < 0:
                         tab.ban_combo.addItem(f"{ban} (Unavailable)", ban)
                         set_combo_item_enabled(tab.ban_combo, tab.ban_combo.findData(ban), False)
-                    for row, cid in zip(tab.rows, config.role_champions_ui.get(role_key, [])):
+                    for row, cid in zip(
+                        tab.rows, config.role_champions_ui.get(role_key, []), strict=False
+                    ):
                         if cid is not None and row.champion.findData(cid) < 0:
-                            row.champion.addItem(f"{self._champion_names.get(cid, str(cid))} (Unavailable)", cid)
+                            row.champion.addItem(
+                                f"{self._champion_names.get(cid, str(cid))} (Unavailable)", cid
+                            )
                             set_combo_item_enabled(row.champion, row.champion.findData(cid), False)
                 tab.restore(
                     config.role_bans_ui.get(role_key),
@@ -485,29 +511,41 @@ class MainWindow(QMainWindow):
         editable = ready and self._champions_loaded
         self.tabs.setEnabled(editable)
         for widget in (
-            self.queue_combo, self.primary_role_combo, self.secondary_role_combo,
+            self.queue_combo,
+            self.primary_role_combo,
+            self.secondary_role_combo,
         ):
             widget.setEnabled(editable)
         self.refresh_button.setEnabled(ready and not self.champions_query.busy)
         self.settings_status.setText(
-            "Settings loaded" if editable else
-            "Refresh champions to edit saved settings" if ready else "Loading saved settings…"
+            "Settings loaded"
+            if editable
+            else "Refresh champions to edit saved settings" if ready else "Loading saved settings…"
         )
         self.settings_status.setToolTip("")
-        self.start_button.setEnabled(editable and self.automation.state not in (
-            STATE_RUNNING, STATE_STARTING, STATE_STOPPING,
-        ))
+        self.start_button.setEnabled(
+            editable
+            and self.automation.state
+            not in (
+                STATE_RUNNING,
+                STATE_STARTING,
+                STATE_STOPPING,
+            )
+        )
 
     def _on_settings_failed(self, error: str) -> None:
         self.settings_status.setText(
-            "Settings save failed; retrying…" if self.settings.ready
+            "Settings save failed; retrying…"
+            if self.settings.ready
             else "Waiting for backend to load saved settings…"
         )
         self.settings_status.setToolTip(error)
         if self._closing:
             self._closing = False
             self.centralWidget().setEnabled(True)
-            QMessageBox.warning(self, "Settings", f"Could not save settings. Please retry closing.\n\n{error}")
+            QMessageBox.warning(
+                self, "Settings", f"Could not save settings. Please retry closing.\n\n{error}"
+            )
 
     def _on_settings_saved(self) -> None:
         self.settings_status.setText("Settings saved")

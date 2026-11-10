@@ -1,9 +1,9 @@
 """Resolve known skin artwork from League metadata, with bounded memory use."""
 
-from collections import OrderedDict
 import re
 import threading
 import time
+from collections import OrderedDict
 
 from rune_pilot.application.game_query_service import QueryUnavailable
 from rune_pilot.application.ports.league_client import LeagueClient
@@ -14,7 +14,10 @@ MAX_IMAGE_BYTES = 3 * 1024 * 1024
 MAX_CACHE_BYTES = 32 * 1024 * 1024
 MAX_CACHED_IMAGES = 32
 MAX_CACHED_CHAMPIONS = 32
-_ASSET = re.compile(r"/lol-game-data/assets/ASSETS/Characters/(?:[a-z0-9_-]+/)+[a-z0-9_-]+\.(?:jpg|jpeg|png)", re.IGNORECASE)
+_ASSET = re.compile(
+    r"/lol-game-data/assets/ASSETS/Characters/(?:[a-z0-9_-]+/)+[a-z0-9_-]+\.(?:jpg|jpeg|png)",
+    re.IGNORECASE,
+)
 
 
 class SkinArtworkQuery:
@@ -46,16 +49,25 @@ class SkinArtworkQuery:
                         return None
                     response.raise_for_status()
                     data = response.json()
-                    if not isinstance(data, dict) or data.get('id') != champion_id or not isinstance(data.get('skins'), list):
-                        raise ValueError('Missing skin metadata')
+                    if (
+                        not isinstance(data, dict)
+                        or data.get("id") != champion_id
+                        or not isinstance(data.get("skins"), list)
+                    ):
+                        raise ValueError("Missing skin metadata")
                     if is_mode_champion_variant(data):
                         return None
                     paths = {}
-                    for skin in data['skins']:
+                    for skin in data["skins"]:
                         if not isinstance(skin, dict):
                             continue
-                        sid, path = skin.get('id'), skin.get('splashPath')
-                        if isinstance(sid, int) and sid // 1000 == champion_id and isinstance(path, str) and _ASSET.fullmatch(path):
+                        sid, path = skin.get("id"), skin.get("splashPath")
+                        if (
+                            isinstance(sid, int)
+                            and sid // 1000 == champion_id
+                            and isinstance(path, str)
+                            and _ASSET.fullmatch(path)
+                        ):
                             paths[sid] = path
                     metadata = (self._clock() + CACHE_SECONDS, paths)
                     self._metadata[champion_id] = metadata
@@ -69,7 +81,11 @@ class SkinArtworkQuery:
                 if response.status_code != 200:
                     return None
                 content = response.content
-                media_type = 'image/jpeg' if content.startswith(b'\xff\xd8\xff') else 'image/png' if content.startswith(b'\x89PNG\r\n\x1a\n') else None
+                media_type = (
+                    "image/jpeg"
+                    if content.startswith(b"\xff\xd8\xff")
+                    else "image/png" if content.startswith(b"\x89PNG\r\n\x1a\n") else None
+                )
                 if not media_type or len(content) > MAX_IMAGE_BYTES:
                     return None
                 self._images[key] = (self._clock() + CACHE_SECONDS, content, media_type)
@@ -78,4 +94,4 @@ class SkinArtworkQuery:
                     self._bytes -= len(self._images.popitem(last=False)[1][1])
                 return content, media_type
             except Exception as error:
-                raise QueryUnavailable('Could not load skin artwork from League Client') from error
+                raise QueryUnavailable("Could not load skin artwork from League Client") from error

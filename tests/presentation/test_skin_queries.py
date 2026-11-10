@@ -24,9 +24,13 @@ class SkinApi:
         self.gate.wait(3)
         if self.fail:
             raise RuntimeError("LCU unavailable")
-        return SkinOptions(champion_id=champion_id, skins=[
-            SkinOption(id=266000, name="Default"), SkinOption(id=266001, name="Justicar"),
-        ])
+        return SkinOptions(
+            champion_id=champion_id,
+            skins=[
+                SkinOption(id=266000, name="Default"),
+                SkinOption(id=266001, name="Justicar"),
+            ],
+        )
 
 
 @pytest.fixture

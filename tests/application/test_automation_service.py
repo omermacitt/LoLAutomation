@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import threading
 import time
+
 import pytest
 
 from rune_pilot.application.automation_service import AutomationService
@@ -159,11 +160,13 @@ def test_rapid_stop_start_waits_for_old_loop_and_never_revives_its_signal():
 def test_shutdown_interrupts_sleep_and_prevents_future_starts():
     entered = threading.Event()
     finished = threading.Event()
+
     def loop(should_run, get_snapshot, wait):
         entered.set()
         wait(100)
         assert not should_run()
         finished.set()
+
     service = AutomationService(loop)
     service.start({"queue_id": 420})
     assert entered.wait(2)
@@ -176,6 +179,7 @@ def test_shutdown_interrupts_sleep_and_prevents_future_starts():
 def test_loop_failure_clears_running_state_and_allows_a_fresh_start():
     def broken(*args):
         raise ValueError("failure")
+
     service = AutomationService(broken)
     service.start({"queue_id": 420})
     thread = service._thread
@@ -193,10 +197,12 @@ def test_loop_failure_clears_running_state_and_allows_a_fresh_start():
 
 def test_shutdown_timeout_reports_pending_io_and_cancellation_remains_set():
     entered, release = threading.Event(), threading.Event()
+
     def loop(should_run, get_snapshot, wait):
         entered.set()
         release.wait(2)
         assert not should_run()
+
     service = AutomationService(loop)
     service.start({})
     try:

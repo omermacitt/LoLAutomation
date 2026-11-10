@@ -1,6 +1,6 @@
 """Searchable QComboBox widget — adds type-ahead behaviour to a QComboBox."""
 
-from PyQt6.QtCore import Qt, QTimer, QObject, QEvent
+from PyQt6.QtCore import QEvent, QObject, Qt, QTimer
 from PyQt6.QtWidgets import QComboBox, QCompleter
 
 
@@ -66,7 +66,7 @@ def make_combo_searchable(combo: QComboBox, *, placeholder: str = "Search...") -
     le.setPlaceholderText(placeholder)
     filter_obj = _SearchableComboLineEditFilter(combo)
     le.installEventFilter(filter_obj)
-    setattr(combo, "_search_event_filter", filter_obj)
+    combo._search_event_filter = filter_obj
 
     completer = QCompleter(combo.model(), combo)
     completer.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)

@@ -10,8 +10,8 @@ from __future__ import annotations
 
 import json
 import os
-import threading
 import tempfile
+import threading
 from collections.abc import Callable
 from typing import Any
 
@@ -105,7 +105,7 @@ class ConfigRepository:
                 seen.add(key)
                 with _lock_for(candidate):
                     try:
-                        with open(candidate, "r", encoding="utf-8") as stream:
+                        with open(candidate, encoding="utf-8") as stream:
                             data = json.load(stream)
                     except FileNotFoundError:
                         continue
@@ -120,7 +120,14 @@ class ConfigRepository:
                     del data["accounts"]
                     staged: str | None = None
                     try:
-                        with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", dir=os.path.dirname(os.path.abspath(candidate)), prefix=".profile-cleanup-", suffix=".tmp", delete=False) as stream:
+                        with tempfile.NamedTemporaryFile(
+                            mode="w",
+                            encoding="utf-8",
+                            dir=os.path.dirname(os.path.abspath(candidate)),
+                            prefix=".profile-cleanup-",
+                            suffix=".tmp",
+                            delete=False,
+                        ) as stream:
                             staged = stream.name
                             json.dump(data, stream, indent=2, ensure_ascii=False)
                         os.replace(staged, candidate)
@@ -140,7 +147,7 @@ class ConfigRepository:
         if not path:
             return {}
         try:
-            with open(path, "r", encoding="utf-8") as f:
+            with open(path, encoding="utf-8") as f:
                 data = json.load(f)
         except FileNotFoundError:
             return {}

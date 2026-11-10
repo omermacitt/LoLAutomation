@@ -205,7 +205,7 @@ are triggered by notification display.
 
 ## Update HTTP Flow
 
-`GET /updates` returns `{ "update": null }` when disabled, unavailable, or on the installed release tag; otherwise it returns `UpdateInfo` with a backend-issued `update_id`. The legacy release-tag comparison policy is retained. `POST /updates/{update_id}/download` accepts only an offer discovered by this backend and returns an absolute `installer_path` on the same machine as the desktop. It accepts no client URL or destination. Unknown/expired offers return 404; download failures return a sanitized 502. Offers are process-local, deduplicated, and limited to eight. Successful downloads are reused for retries within that offer's lifetime.
+`GET /updates` returns `{ "update": null }` when disabled, unavailable, or on the installed release tag; otherwise it returns `UpdateInfo` with a backend-issued `update_id`. Numeric release versions are compared before offering an update; older and equivalent versions are ignored. Setup/installer executables take priority over a standalone executable. `POST /updates/{update_id}/download` accepts only an offer discovered by this backend and returns an absolute `installer_path` on the same machine as the desktop. It accepts no client URL or destination. Unknown/expired offers return 404; download failures return a sanitized 502. Offers are process-local, deduplicated, and limited to eight. Successful downloads are reused for retries within that offer's lifetime.
 
 Composition reads `RUNEPILOT_DISABLE_AUTO_UPDATE`, `RUNEPILOT_UPDATE_REPO` (default `UPDATE_REPO_DEFAULT`), and `RUNEPILOT_GITHUB_TOKEN`/`GITHUB_TOKEN`. Tokens stay in the backend adapter. GitHub checks have a 4-second timeout; streaming downloads have a 300-second timeout and the desktop HTTP download allows 310 seconds. Installers use a fresh temporary directory; only HTTPS GitHub release assets from the configured repository and plain `.exe` filenames are accepted. Failed/empty downloads remove their partial files. Successful files remain available for the installer to run.
 
@@ -246,7 +246,7 @@ Scenario coverage and evidence live in [docs/qa/ux-scenarios.md](docs/qa/ux-scen
 
 `python -m pytest` covers domain/config migration, removed-account cleanup, atomic settings persistence, absent credential endpoints, automation lifecycle, architecture imports, HTTP contracts, lost-response recovery, query timeouts, and asynchronous controller/window/dialog behavior. Tests use temporary profiles and stub external queries; Qt runs with `QT_QPA_PLATFORM=offscreen`. Tests never migrate real user profiles or perform Riot sign-in.
 
-Install test dependencies with `pip install -e .[dev]` (including `pytest` and `httpx`). When changing presentation, maintain offscreen assembly checks and cover asynchronous failure/ordering behavior where data loss is possible.
+Install test dependencies with `pip install -e .[dev]` (including `pytest`, `httpx`, `ruff` and `black`). CI runs the complete Python/offscreen Qt suite on Windows and frontend tests/build on Linux. Run `python -m ruff check src tests main.py run_app.py` and `python -m black --check src tests main.py run_app.py` before merging. Remote characterization tests have been migrated to the current ports and domain functions; do not restore the obsolete root modules or parallel `runepilot/` package. When changing presentation, maintain offscreen assembly checks and cover asynchronous failure/ordering behavior where data loss is possible.
 
 ---
 

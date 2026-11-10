@@ -12,9 +12,9 @@ from __future__ import annotations
 import hashlib
 import json
 
-from rune_pilot.domain.user_config import OWNED_KEYS, UserConfig
-from rune_pilot.domain.champion_service import ensure_unique_role_champions
 from rune_pilot.application.ports.config_store import ConfigStore
+from rune_pilot.domain.champion_service import ensure_unique_role_champions
+from rune_pilot.domain.user_config import OWNED_KEYS, UserConfig
 
 
 class ConfigConflict(RuntimeError):
@@ -55,7 +55,10 @@ class ConfigService:
 
         def mutate(data: dict) -> None:
             nonlocal conflict
-            if expected_revision is not None and self.revision(UserConfig.from_raw(data)) != expected_revision:
+            if (
+                expected_revision is not None
+                and self.revision(UserConfig.from_raw(data)) != expected_revision
+            ):
                 conflict = True
                 # ConfigStore.update must abort a failed mutation without writing.
                 raise ConfigConflict("Settings changed in another window")

@@ -25,7 +25,9 @@ def test_saved_account_login_and_launch_routes_are_absent(tmp_path):
         ):
             assert client.request(method, path).status_code == 404
         paths = client.get("/openapi.json").json()["paths"]
-        assert not any(path.startswith(("/accounts", "/login-jobs", "/league/launch")) for path in paths)
+        assert not any(
+            path.startswith(("/accounts", "/login-jobs", "/league/launch")) for path in paths
+        )
         assert "login_running" not in client.get("/health").json()
         assert client.get("/settings").json()["queue_name"] == "Ranked Solo/Duo"
     assert not hasattr(app.state, "accounts")

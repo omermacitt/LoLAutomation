@@ -78,7 +78,9 @@ class ChampionSelectionModel(QObject):
         happens after a preset is deleted from another role's tab.
         """
         try:
-            slot = int(self._rune_selection.get(str(champ_id), RECOMMENDED_SLOT) or RECOMMENDED_SLOT)
+            slot = int(
+                self._rune_selection.get(str(champ_id), RECOMMENDED_SLOT) or RECOMMENDED_SLOT
+            )
         except (TypeError, ValueError):
             return RECOMMENDED_SLOT
         if str(slot) not in RUNE_SLOTS or str(slot) not in self.presets(champ_id):

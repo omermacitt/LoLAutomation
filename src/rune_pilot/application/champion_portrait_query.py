@@ -1,11 +1,11 @@
 """Known champion portraits with bounded, instance-owned memory caches."""
 
-from collections import OrderedDict
 import threading
 import time
+from collections import OrderedDict
 
-from rune_pilot.application.ports.league_client import LeagueClient
 from rune_pilot.application.game_query_service import QueryUnavailable
+from rune_pilot.application.ports.league_client import LeagueClient
 from rune_pilot.domain.champion_service import is_mode_champion_variant, normalize_champion_id
 
 PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
@@ -64,4 +64,6 @@ class ChampionPortraitQuery:
                     self._images.popitem(last=False)
                 return data
             except Exception as error:
-                raise QueryUnavailable("Could not load champion portrait from League Client") from error
+                raise QueryUnavailable(
+                    "Could not load champion portrait from League Client"
+                ) from error

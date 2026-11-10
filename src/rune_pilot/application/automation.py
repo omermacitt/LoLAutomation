@@ -4,23 +4,34 @@ import time
 from collections.abc import Callable
 from typing import Any
 
-from rune_pilot.application.ports.league_client import LeagueClient
 from rune_pilot.application.automation_state import AutomationProgress, AutomationSnapshot
 from rune_pilot.application.champion_query import ChampionQuery
 from rune_pilot.application.lobby_service import LobbyService
+from rune_pilot.application.ports.league_client import LeagueClient
 from rune_pilot.application.rune_service import RuneService
-from rune_pilot.domain.champion_service import normalize_champion_id, normalize_spell_id
-from rune_pilot.domain.champ_select import extract_spell_pair, local_player, open_pick_action, spell_fallbacks
 from rune_pilot.application.selection_feedback import SelectionFeedback
+from rune_pilot.domain.champ_select import (
+    extract_spell_pair,
+    local_player,
+    open_pick_action,
+    spell_fallbacks,
+)
+from rune_pilot.domain.champion_service import normalize_champion_id, normalize_spell_id
 from rune_pilot.domain.rune_rules import build_rune_page_name
 from rune_pilot.shared.utils import safe_int_list
 
 
 class AutomationRunner:
     def __init__(
-        self, client: LeagueClient, champions: ChampionQuery, runes: RuneService,
-        lobby: LobbyService, *, sleep: Callable[[float], None] = time.sleep,
-        now: Callable[[], float] = time.time, feedback: SelectionFeedback | None = None,
+        self,
+        client: LeagueClient,
+        champions: ChampionQuery,
+        runes: RuneService,
+        lobby: LobbyService,
+        *,
+        sleep: Callable[[float], None] = time.sleep,
+        now: Callable[[], float] = time.time,
+        feedback: SelectionFeedback | None = None,
     ):
         self._client = client
         self._champions = champions
@@ -30,7 +41,13 @@ class AutomationRunner:
         self._now = now
         self.feedback = feedback if feedback is not None else SelectionFeedback()
 
-    def apply_runes(self, session: dict[str, Any], cfg: dict[str, Any], *, should_run: Callable[[], bool] = lambda: True) -> bool:
+    def apply_runes(
+        self,
+        session: dict[str, Any],
+        cfg: dict[str, Any],
+        *,
+        should_run: Callable[[], bool] = lambda: True,
+    ) -> bool:
         """
         Applies the rune page for the currently selected champion.
 
@@ -69,7 +86,9 @@ class AutomationRunner:
 
             if selection in (1, 2, 3):
                 custom_runes = cfg.get("custom_runes") or {}
-                champ_presets = custom_runes.get(champ_key) if isinstance(custom_runes, dict) else None
+                champ_presets = (
+                    custom_runes.get(champ_key) if isinstance(custom_runes, dict) else None
+                )
                 champ_presets = champ_presets if isinstance(champ_presets, dict) else {}
                 custom_page = champ_presets.get(str(selection))
 
@@ -85,7 +104,10 @@ class AutomationRunner:
                     except (TypeError, ValueError):
                         candidate = None
 
-                    if candidate is not None and len(safe_int_list(candidate.get("selectedPerkIds"))) != 9:
+                    if (
+                        candidate is not None
+                        and len(safe_int_list(candidate.get("selectedPerkIds"))) != 9
+                    ):
                         candidate = None
 
                     if candidate is None:
@@ -126,7 +148,9 @@ class AutomationRunner:
 
             selected = safe_int_list(page_data.get("selectedPerkIds"))
             if len(selected) != 9:
-                print(f"[RUNES] Invalid selectedPerkIds for championId={my_champ_id}: {page_data.get('selectedPerkIds')}")
+                print(
+                    f"[RUNES] Invalid selectedPerkIds for championId={my_champ_id}: {page_data.get('selectedPerkIds')}"
+                )
                 return False
 
             res = self._client.rune_pages()
@@ -159,7 +183,12 @@ class AutomationRunner:
                 n = (name or "").strip()
                 if not n:
                     return False
-                if n.startswith("Auto ") or n.startswith("Custom ") or n.startswith("Auto-") or n.startswith("Custom-"):
+                if (
+                    n.startswith("Auto ")
+                    or n.startswith("Custom ")
+                    or n.startswith("Auto-")
+                    or n.startswith("Custom-")
+                ):
                     return True
                 return n == "LoLAutomation" or n.startswith("LoLAutomation")
 
@@ -186,7 +215,11 @@ class AutomationRunner:
 
             # 1) Update existing automation page (best case)
             for p in pages:
-                if isinstance(p, dict) and _is_editable(p) and _is_automation_page_name(_page_name(p)):
+                if (
+                    isinstance(p, dict)
+                    and _is_editable(p)
+                    and _is_automation_page_name(_page_name(p))
+                ):
                     if _put_page(p, name=desired_page_name):
                         return True
                     break
@@ -248,10 +281,16 @@ class AutomationRunner:
 
                 # 3) As a last resort, overwrite the currently selected editable page.
                 current_page = next(
-                    (p for p in pages if isinstance(p, dict) and _is_editable(p) and p.get("current") is True),
+                    (
+                        p
+                        for p in pages
+                        if isinstance(p, dict) and _is_editable(p) and p.get("current") is True
+                    ),
                     None,
                 )
-                any_editable = next((p for p in pages if isinstance(p, dict) and _is_editable(p)), None)
+                any_editable = next(
+                    (p for p in pages if isinstance(p, dict) and _is_editable(p)), None
+                )
                 target = current_page or any_editable
                 if target is not None:
                     if _put_page(target, name=desired_page_name):
@@ -264,7 +303,8 @@ class AutomationRunner:
             print(f"[RUNES] Error applying runes: {e}")
             return False
 
-    def run(self,
+    def run(
+        self,
         should_run: Callable[[], bool],
         get_snapshot: Callable[[], AutomationSnapshot],
         wait: Callable[[float], bool] | None = None,
@@ -310,7 +350,9 @@ class AutomationRunner:
                     if flow_phase in (None, "None", "Lobby"):
                         now = self._now()
                         if now - last_queue_action_ts > 5:
-                            if self._lobby.ensure_lobby(queue_id_int, should_run=should_run, wait=wait):
+                            if self._lobby.ensure_lobby(
+                                queue_id_int, should_run=should_run, wait=wait
+                            ):
                                 if not should_run():
                                     break
                                 # Position preferences require an active lobby.
@@ -373,7 +415,11 @@ class AutomationRunner:
                             break
 
                     role_bans = cfg.get("role_bans") or {}
-                    ban_id = normalize_champion_id(role_bans.get(assigned_role)) if assigned_role else None
+                    ban_id = (
+                        normalize_champion_id(role_bans.get(assigned_role))
+                        if assigned_role
+                        else None
+                    )
                     if ban_id is None and assigned_role == "":
                         p_role = str(cfg.get("primary_role", "")).upper()
                         ban_id = normalize_champion_id(role_bans.get(p_role))
@@ -388,30 +434,43 @@ class AutomationRunner:
                         my_champs = role_champs.get(p_role, [])
 
                     player = local_player(session)
-                    confirmed_champion = normalize_champion_id(player.get('championId'))
+                    confirmed_champion = normalize_champion_id(player.get("championId"))
                     action = open_pick_action(session, active_only=False)
-                    action_key = (session.get('gameId'), my_cell, action.get('id')) if action else None
+                    action_key = (
+                        (session.get("gameId"), my_cell, action.get("id")) if action else None
+                    )
                     if confirmed_champion:
                         self.feedback.clear()
                     elif action_key is not None:
                         if handoff_key != action_key:
                             handoff_key = None
                             if not my_champs:
-                                result = {'status': 'no_preference'}
-                            elif normalize_champion_id(player.get('championPickIntent')):
-                                result = {'status': 'manual_hover'}
-                            elif action.get('isInProgress') is False:
-                                result = {'status': 'no_pick_available'}
+                                result = {"status": "no_preference"}
+                            elif normalize_champion_id(player.get("championPickIntent")):
+                                result = {"status": "manual_hover"}
+                            elif action.get("isInProgress") is False:
+                                result = {"status": "no_pick_available"}
                             else:
-                                result = self._lobby.auto_pick_impl(session, my_champs, should_run=should_run)
+                                result = self._lobby.auto_pick_impl(
+                                    session, my_champs, should_run=should_run
+                                )
                             if not should_run():
                                 break
-                            reason = result.get('status')
-                            if reason in ('no_preference', 'all_unavailable', 'pick_failed', 'manual_hover', 'manual_selection'):
+                            reason = result.get("status")
+                            if reason in (
+                                "no_preference",
+                                "all_unavailable",
+                                "pick_failed",
+                                "manual_hover",
+                                "manual_selection",
+                            ):
                                 handoff_key = action_key
-                                self.feedback.publish(action_key, 'manual_hover' if reason == 'manual_selection' else reason,
-                                                      assigned_role or str(cfg.get('primary_role') or '').upper(),
-                                                      normalize_champion_id(player.get('championPickIntent')))
+                                self.feedback.publish(
+                                    action_key,
+                                    "manual_hover" if reason == "manual_selection" else reason,
+                                    assigned_role or str(cfg.get("primary_role") or "").upper(),
+                                    normalize_champion_id(player.get("championPickIntent")),
+                                )
                             else:
                                 self.feedback.clear()
                     elif handoff_key is None:
@@ -421,8 +480,16 @@ class AutomationRunner:
                         break
 
                     if phase == "FINALIZATION" and confirmed_champion:
-                        rune_champion = next((normalize_champion_id(p.get("championId") or p.get("championPickIntent"))
-                                              for p in session.get("myTeam", []) if p.get("cellId") == my_cell), None)
+                        rune_champion = next(
+                            (
+                                normalize_champion_id(
+                                    p.get("championId") or p.get("championPickIntent")
+                                )
+                                for p in session.get("myTeam", [])
+                                if p.get("cellId") == my_cell
+                            ),
+                            None,
+                        )
                         if rune_champion and progress.rune_champion != rune_champion:
                             if self.apply_runes(session, cfg, should_run=should_run):
                                 progress.rune_champion = rune_champion
@@ -439,11 +506,15 @@ class AutomationRunner:
                         if p.get("cellId") == my_cell:
                             my_spell_champ_id = normalize_champion_id(p.get("championId") or 0) or 0
                             if my_spell_champ_id == 0:
-                                my_spell_champ_id = normalize_champion_id(p.get("championPickIntent") or 0) or 0
+                                my_spell_champ_id = (
+                                    normalize_champion_id(p.get("championPickIntent") or 0) or 0
+                                )
                             break
                     if handoff_key is not None and not confirmed_champion:
                         my_spell_champ_id = 0
-                    role_entry, allow_global_spells = spell_fallbacks(cfg, spell_role_key, my_spell_champ_id)
+                    role_entry, allow_global_spells = spell_fallbacks(
+                        cfg, spell_role_key, my_spell_champ_id
+                    )
 
                     custom_entry = None
                     custom_spell_map = cfg.get("custom_summoner_spells")
@@ -499,7 +570,9 @@ class AutomationRunner:
 
                             skin_key = (my_spell_champ_id, desired_skin_id)
                             if progress.skin_key != skin_key:
-                                skin_reply = self._client.set_selection({"selectedSkinId": int(desired_skin_id)})
+                                skin_reply = self._client.set_selection(
+                                    {"selectedSkinId": int(desired_skin_id)}
+                                )
                                 if skin_reply.status_code in (200, 201, 204):
                                     progress.skin_key = skin_key
                         else:
