@@ -48,3 +48,9 @@ frontend/test-results-ux-accounts/
 frontend/test-results-ux-accounts-final/
 frontend/test-results-ux-removal/
 frontend/playwright-report/
+
+# Native desktop generated output
+frontend/src-tauri/target/
+frontend/src-tauri/gen/
+frontend/src-tauri/binaries/*.exe
+desktop-test-results/

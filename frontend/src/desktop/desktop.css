@@ -1,0 +1,5 @@
+.desktop-startup { position:fixed; inset:0; z-index:1000; display:grid; place-items:center; background:#101017ee; color:#e3d7ed; padding:24px; }
+.desktop-startup__card { width:min(520px,100%); border:1px solid #5b416c; border-radius:18px; padding:36px; background:#201827; box-shadow:0 24px 100px #0008; }
+.desktop-startup__brand { display:block; font-size:30px; letter-spacing:-1px; font-weight:700; color:#d7b6ef; margin-bottom:40px; }
+.desktop-startup h1 { font-size:23px; line-height:1.4; margin-bottom:15px; }.desktop-startup p { color:#bda9cb; font-size:13px; line-height:1.9; margin:12px 0 20px; }.desktop-startup small { display:block; color:#9c84ae; margin-top:24px; font-size:11px; }
+.desktop-notice { position:sticky; top:0; z-index:1100; display:flex; align-items:center; gap:20px; padding:15px 24px; background:#493525; color:#f2d3a4; font-size:13px; line-height:1.8; }.desktop-notice button { margin-left:auto; background:#704f35; color:#ffe5c1; padding:8px 16px; border-radius:6px; white-space:nowrap; }

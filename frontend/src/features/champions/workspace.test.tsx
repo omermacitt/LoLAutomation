@@ -13,6 +13,29 @@ function makeApi(): PilotApi {
 }
 
 describe('champion workspace ordering and data safety', () => {
+  it('recovers an unmounted dirty rune workspace through save and Stop errors without stale render gates', async () => {
+    const api = makeApi()
+    const pending = deferred<Settings>()
+    vi.mocked(api.saveSettings).mockImplementationOnce(() => pending.promise)
+    const { result, unmount } = renderHook(() => useChampionWorkspace(api))
+    await waitFor(() => expect(result.current.ready).toBe(true))
+    act(() => result.current.editSettings({ queue_name: 'Ranked Flex' }))
+    act(() => result.current.setRuneEditorDirty(true))
+    const recover = result.current.recoverFinish
+    unmount()
+    const recovering = recover()
+    expect(api.stop).not.toHaveBeenCalled()
+    const failed = expect(recovering).rejects.toThrow('disk full')
+    pending.reject(new Error('disk full'))
+    await failed
+    expect(api.stop).not.toHaveBeenCalled()
+    vi.mocked(api.stop).mockRejectedValueOnce(new Error('stop failed'))
+    await expect(recover()).rejects.toThrow('stop failed')
+    expect(api.saveSettings).toHaveBeenLastCalledWith(expect.objectContaining({ queue_name: 'Ranked Flex' }))
+    await recover()
+    expect(api.stop).toHaveBeenCalledTimes(2)
+    expect(api.start).not.toHaveBeenCalled()
+  })
   it('waits for rune validation before merging and acknowledging a preset', async () => {
     const validation = deferred<RunePage>()
     const api = makeApi()

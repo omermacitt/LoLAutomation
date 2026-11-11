@@ -18,10 +18,12 @@ import { RuneWorkspace } from './features/runes/RuneWorkspace'
 import { SkinGallery } from './features/skins/SkinGallery'
 import type { SkinRequest } from './features/skins/SkinGallery'
 import './styles.css'
+import { useDesktopLifecycle } from './desktop/DesktopHost'
 
 
 export default function App({ api = apiClient }: { api?: PilotApi }) {
   const workspace = useChampionWorkspace(api)
+  useDesktopLifecycle(workspace)
   const { health, settings, catalog, draft, role, target, ready } = workspace
   const [search, setSearch] = useState('')
   const [pageAnchor, setPageAnchor] = useState(0)

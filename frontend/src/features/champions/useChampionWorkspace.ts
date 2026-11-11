@@ -157,17 +157,21 @@ export function useChampionWorkspace(api: PilotApi) {
     try { await engine.stop() } catch (error) { if (mounted.current) setActionError(message(error)) }
   }
   const finish = async () => {
-    if (actionGate.current || closing || ended || automation.busy) return
-    if (runeEditorDirty) { setActionError('Kaydedilmemiş rün düzenlemeleri var. Önce rün editöründen kaydet veya geri al.'); return }
+    if (ended) return true
+    if (actionGate.current || closing || automation.busy) return false
+    if (runeEditorDirty) { setActionError('Kaydedilmemiş rün düzenlemeleri var. Önce rün editöründen kaydet veya geri al.'); return false }
     actionGate.current = true
-    commandEpoch.current++
+    const epoch = ++commandEpoch.current
     setClosing(true)
     setActionError(undefined)
     try {
       if (writer.getSnapshot().draft) await writer.flush()
+      if (epoch !== commandEpoch.current) throw new Error('Bağlantı değişti. Yeniden bağlanıp çıkışı tekrar dene.')
       await engine.stop()
+      if (epoch !== commandEpoch.current) throw new Error('Bağlantı değişti. Yeniden bağlanıp çıkışı tekrar dene.')
       if (mounted.current) setEnded(true)
-    } catch (error) { if (mounted.current) setActionError(message(error)) }
+      return true
+    } catch (error) { if (mounted.current) setActionError(message(error)); return false }
     finally { actionGate.current = false; if (mounted.current) setClosing(false) }
   }
   const reloadSettings = async () => {
@@ -234,6 +238,18 @@ export function useChampionWorkspace(api: PilotApi) {
     }
   })
 
+  const suspendConnection = () => { commandEpoch.current++; writer.suspend(); engine.suspendConnection() }
+  const resumeConnection = () => { writer.resume(); setAttempt((value) => value + 1); void engine.check() }
+  // Used only after explicit confirmation in the native error fallback. React
+  // has unmounted App, so render-time busy/dirty flags cannot gate recovery.
+  const recoverFinish = async () => {
+    const epoch = ++commandEpoch.current
+    if (writer.getSnapshot().draft) await writer.flush()
+    if (epoch !== commandEpoch.current) throw new Error('Bağlantı değişti. Yeniden bağlanıp çıkışı tekrar dene.')
+    await engine.stop()
+    if (epoch !== commandEpoch.current) throw new Error('Bağlantı değişti. Yeniden bağlanıp çıkışı tekrar dene.')
+  }
+
   const needsGuard = saveState.dirty || saveState.saving || preparing || closing || runeBusy || runeEditorDirty
     || (!ended && (automation.health?.running === true || Boolean(automation.busy) || !automation.health))
   useEffect(() => {
@@ -248,7 +264,7 @@ export function useChampionWorkspace(api: PilotApi) {
     ready: editable, dirty: saveState.dirty, saveState, automation, preparing, closing, ended,
     portraitRetryKey: attempt,
     runeBusy, runeEditorDirty, setRuneEditorDirty, saveRunePreset, deleteRunePreset, discardRunePreset, selectRunePreset,
-    actionError, choose, editSettings, changeSpell, changeSkin, reorder, start, stop, finish, reloadSettings, apply,
+    actionError, choose, editSettings, changeSpell, changeSkin, reorder, start, stop, finish, recoverFinish, reloadSettings, apply, suspendConnection, resumeConnection,
     save: () => { void writer.flush().catch(() => {}) }, reset: () => writer.reset(),
     retry: () => { setAttempt((value) => value + 1); void engine.check() } }
 }

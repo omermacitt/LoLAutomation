@@ -89,6 +89,7 @@ test('saving remains visible when a translator wraps the button label during the
 })
 
 test('saving live-shaped rune data keeps the editor mounted and reports no browser errors', async ({ page }) => {
+  test.skip(process.env.RUNEPILOT_LIVE_READS !== '1', 'Opt in with RUNEPILOT_LIVE_READS=1 and a running League client.')
   test.skip(test.info().project.name !== 'desktop', 'One live-data reproduction is sufficient.')
   const settingsResponse = await page.request.get('/api/settings')
   let config = await settingsResponse.json() as Settings
@@ -267,6 +268,7 @@ test('an unreadable legacy preset is preserved until explicitly replaced', async
 })
 
 test('live rune metadata and artwork render without changing the profile', async ({ page }, info) => {
+  test.skip(process.env.RUNEPILOT_LIVE_READS !== '1', 'Opt in with RUNEPILOT_LIVE_READS=1 and a running League client.')
   test.skip(info.project.name !== 'desktop', 'One read-only live check is sufficient.')
   const before = await page.request.get('/api/settings')
   const beforeBody = await before.json()
