@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import type { ChampionCatalog, PilotApi, Settings, RunePage, SkinOptions } from '../../api/contracts'
 import type { RoleKey, Target } from './selection'
 import { initialRole } from './selection'
@@ -13,8 +13,13 @@ type Resource<T> = { data?: T; loading: boolean; error?: string }
 const message = (error: unknown) => error instanceof Error ? error.message : 'İşlem tamamlanamadı.'
 
 export function useChampionWorkspace(api: PilotApi) {
-  const writer = useMemo(() => new SettingsWriter(api), [api])
-  const engine = useMemo(() => new AutomationController(api), [api])
+  // These controllers own drafts and queued commands. Fast Refresh may discard
+  // memo caches while preserving refs, so their lifetime cannot depend on useMemo.
+  const runtime = useRef<{ api: PilotApi; writer: SettingsWriter; engine: AutomationController } | null>(null)
+  if (!runtime.current || runtime.current.api !== api) {
+    runtime.current = { api, writer: new SettingsWriter(api), engine: new AutomationController(api) }
+  }
+  const { writer, engine } = runtime.current
   const saveState = useSyncExternalStore(writer.subscribe, writer.getSnapshot)
   const automation = useSyncExternalStore(engine.subscribe, engine.getSnapshot)
   const [settings, setSettings] = useState<Resource<Settings>>({ loading: true })
