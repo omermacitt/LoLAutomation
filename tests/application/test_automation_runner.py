@@ -69,6 +69,91 @@ def run_once(runner, config):
     run_iterations(runner, [AutomationSnapshot(1, config)])
 
 
+def test_invalid_role_page_uses_validated_recommendation_and_never_writes_invalid_page(setup):
+    client, runner, _, source = setup
+    bad = {"primaryStyleId": 0, "subStyleId": 8100, "selectedPerkIds": list(range(1, 10))}
+    config = {"custom_runes": {"1": {"1": bad}}, "role_rune_selection": {"MIDDLE": {"1": 1}}}
+    assert runner.apply_runes(session(), config)
+    assert client.create_rune_page.call_args.args[0]["primaryStyleId"] == 8000
+    assert runner.feedback.read_rune().code == "rune_fallback"
+    client.create_rune_page.reset_mock()
+    source.get_runes_data.return_value = {"1": bad}
+    assert not runner.apply_runes(session(), config)
+    client.create_rune_page.assert_not_called()
+    assert runner.feedback.read_rune().code == "rune_unavailable"
+
+
+def test_catalog_rejection_or_unavailability_prevents_unvalidated_game_writes(setup):
+    from rune_pilot.application.game_query_service import QueryUnavailable
+
+    client, runner, _, _ = setup
+    validator = Mock(side_effect=ValueError("outdated catalog"))
+    runner._validate_rune = validator
+    assert not runner.apply_runes(session(), {})
+    assert validator.call_count == 1
+    client.rune_pages.assert_not_called()
+    assert runner.feedback.read_rune().code == "rune_unavailable"
+    validator.side_effect = QueryUnavailable("offline")
+    assert not runner.apply_runes(session(), {})
+    client.create_rune_page.assert_not_called()
+
+
+def test_role_changes_reapply_same_champion_using_actual_role_and_legacy_for_unknown(setup):
+    client, runner, _, _ = setup
+    middle = session()
+    top = session()
+    top["myTeam"][0]["assignedPosition"] = "top"
+    unknown = session()
+    unknown["myTeam"][0]["assignedPosition"] = ""
+    client.champ_select_session.side_effect = [
+        reply(unknown),
+        reply(top),
+        reply(middle),
+        reply(middle),
+    ]
+
+    def page(style):
+        return {"primaryStyleId": style, "subStyleId": 8100, "selectedPerkIds": list(range(1, 10))}
+
+    config = {
+        "auto_queue": False,
+        "primary_role": "TOP",
+        "rune_selection": {"1": 3},
+        "custom_runes": {"1": {"1": page(8000), "2": page(8200), "3": page(8300)}},
+        "role_rune_selection": {"TOP": {"1": 1}, "MIDDLE": {"1": 2}},
+    }
+    run_iterations(runner, [AutomationSnapshot(1, config)] * 4)
+    assert [item.args[0]["primaryStyleId"] for item in client.create_rune_page.call_args_list] == [
+        8300,
+        8000,
+        8200,
+    ]
+
+
+def test_role_zero_and_missing_preset_do_not_revive_legacy_and_notice_is_separate(setup):
+    client, runner, _, source = setup
+    custom = {"primaryStyleId": 8200, "subStyleId": 8100, "selectedPerkIds": list(range(1, 10))}
+    config = {
+        "rune_selection": {"1": 1},
+        "custom_runes": {"1": {"1": custom}},
+        "role_rune_selection": {"MIDDLE": {"1": 0}},
+    }
+    assert runner.apply_runes(session(), config)
+    assert client.create_rune_page.call_args.args[0]["primaryStyleId"] == 8000
+    client.create_rune_page.reset_mock()
+    source.get_runes_data.return_value = {}
+    config["role_rune_selection"]["MIDDLE"]["1"] = 2
+    runner.feedback.publish(("manual",), "no_preference", "MIDDLE")
+    assert not runner.apply_runes(session(), config)
+    assert not runner.apply_runes(session(), config)
+    client.create_rune_page.assert_not_called()
+    assert runner.feedback.read().code == "no_preference"
+    assert runner.feedback.read_rune().code == "rune_unavailable"
+    notice_id = runner.feedback.read_rune().id
+    assert not runner.apply_runes(session(), config)
+    assert runner.feedback.read_rune().id == notice_id
+
+
 def test_finalization_accepts_ready_applies_runes_spells_and_skin(setup):
     client, runner, _, _ = setup
     client.champ_select_session.return_value = reply(session())

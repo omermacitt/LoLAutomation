@@ -652,6 +652,7 @@ class MainWindow(QMainWindow):
             "role_bans": role_bans,
             "custom_runes": config.custom_runes,
             "rune_selection": config.rune_selection,
+            "role_rune_selection": config.role_rune_selection,
             "custom_skins": config.custom_skins,
         }
 

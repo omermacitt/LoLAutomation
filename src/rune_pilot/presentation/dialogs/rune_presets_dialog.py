@@ -31,6 +31,8 @@ class RunePresetsDialog(QDialog):
         on_delete_preset: Callable[[int], None],
         parent=None,
         api_client: ApiClient | None = None,
+        role_name: str = "",
+        impact_roles: Callable[[int], list[str]] | None = None,
     ) -> None:
         super().__init__(parent)
         self.rune_data = RuneDataController(api_client, self)
@@ -39,6 +41,7 @@ class RunePresetsDialog(QDialog):
         self._champion_name = str(champion_name)
         self._on_save_preset = on_save_preset
         self._on_delete_preset = on_delete_preset
+        self._impact_roles = impact_roles
 
         presets = existing_presets if isinstance(existing_presets, dict) else {}
         self._saved_slots: set[int] = set()
@@ -51,9 +54,12 @@ class RunePresetsDialog(QDialog):
 
         root = QVBoxLayout(self)
 
-        title = QLabel(f"Champion: {self._champion_name}")
+        title = QLabel(f"{role_name} · Champion: {self._champion_name}")
         title.setAlignment(Qt.AlignmentFlag.AlignLeft)
         root.addWidget(title)
+        self.impact_label = QLabel()
+        self.impact_label.setWordWrap(True)
+        root.addWidget(self.impact_label)
 
         nav = QHBoxLayout()
         self.prev_btn = QPushButton("◀")
@@ -129,6 +135,12 @@ class RunePresetsDialog(QDialog):
     def _refresh_header(self) -> None:
         slot = self._current_slot()
         saved = slot in self._saved_slots
+        affected = self._impact_roles(slot) if self._impact_roles else []
+        self.impact_label.setText(
+            "Preset contents and deletion are shared across roles. Used by: "
+            + (", ".join(affected) or "none")
+            + ". Saving assigns only this role."
+        )
         self.slot_label.setText(f"Custom {slot} / 3" + (" (Saved)" if saved else " (Empty)"))
         self.prev_btn.setEnabled(slot > 1)
         self.next_btn.setEnabled(slot < 3)

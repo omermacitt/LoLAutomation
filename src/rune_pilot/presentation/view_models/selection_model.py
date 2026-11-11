@@ -17,6 +17,8 @@ from typing import Any
 
 from PyQt6.QtCore import QObject, pyqtSignal
 
+from rune_pilot.domain.constants import ROLE_KEYS
+from rune_pilot.domain.rune_selection import resolve_rune_choice
 from rune_pilot.domain.user_config import RUNE_SLOTS, UserConfig
 
 RECOMMENDED_SLOT = 0
@@ -33,6 +35,7 @@ class ChampionSelectionModel(QObject):
         self._custom_runes: dict[str, dict[str, dict]] = {}
         # champId(str) -> slot(1|2|3); absent means "recommended"
         self._rune_selection: dict[str, int] = {}
+        self._role_rune_selection: dict[str, dict[str, int]] = {}
         # role -> champId(str) -> skinId
         self._custom_skins: dict[str, dict[str, int]] = {}
         # role -> champId(str) -> {"spell1Id", "spell2Id"}
@@ -49,6 +52,9 @@ class ChampionSelectionModel(QObject):
         """
         self._custom_runes = dict(config.custom_runes)
         self._rune_selection = dict(config.rune_selection)
+        self._role_rune_selection = {
+            role: dict(entries) for role, entries in config.role_rune_selection.items()
+        }
         self._custom_skins = dict(config.custom_skins)
         self._custom_spells = dict(config.custom_summoner_spells)
         self.changed.emit()
@@ -57,6 +63,9 @@ class ChampionSelectionModel(QObject):
         """Copies this model's state onto `config` ahead of a save."""
         config.custom_runes = self._custom_runes
         config.rune_selection = self._rune_selection
+        config.role_rune_selection = {
+            role: dict(entries) for role, entries in self._role_rune_selection.items()
+        }
         config.custom_skins = self._custom_skins
         config.custom_summoner_spells = self._custom_spells
 
@@ -70,13 +79,23 @@ class ChampionSelectionModel(QObject):
     def preset_count(self, champ_id: Any) -> int:
         return sum(1 for slot in self.presets(champ_id) if slot in RUNE_SLOTS)
 
-    def selected_slot(self, champ_id: Any) -> int:
+    def selected_slot(self, champ_id: Any, role: str | None = None) -> int:
         """
         The slot to use for this champion, or 0 for the recommended page.
 
         Falls back to 0 when the stored slot no longer has a preset behind it, which
         happens after a preset is deleted from another role's tab.
         """
+        if role is not None:
+            return resolve_rune_choice(
+                {
+                    "custom_runes": self._custom_runes,
+                    "rune_selection": self._rune_selection,
+                    "role_rune_selection": self._role_rune_selection,
+                },
+                role,
+                champ_id,
+            ).slot
         try:
             slot = int(
                 self._rune_selection.get(str(champ_id), RECOMMENDED_SLOT) or RECOMMENDED_SLOT
@@ -87,8 +106,28 @@ class ChampionSelectionModel(QObject):
             return RECOMMENDED_SLOT
         return slot
 
-    def set_selected_slot(self, champ_id: Any, slot: int) -> None:
+    def has_role_assignment(self, champ_id: Any, role: str) -> bool:
+        return str(champ_id) in self._role_rune_selection.get(role, {})
+
+    def roles_using_preset(self, champ_id: Any, slot: int) -> list[str]:
+        key = str(champ_id)
+        return [
+            role
+            for role in ROLE_KEYS
+            if self._role_rune_selection.get(role, {}).get(key, self._rune_selection.get(key))
+            == slot
+        ]
+
+    def set_selected_slot(self, champ_id: Any, slot: int, role: str | None = None) -> None:
         champ_key = str(champ_id)
+        if role is not None:
+            entries = self._role_rune_selection.setdefault(role, {})
+            if slot == -1:
+                entries.pop(champ_key, None)
+            else:
+                entries[champ_key] = slot if slot in (0, 1, 2, 3) else 0
+            self.changed.emit()
+            return
         if str(slot) in RUNE_SLOTS:
             self._rune_selection[champ_key] = int(slot)
         else:
@@ -96,13 +135,16 @@ class ChampionSelectionModel(QObject):
             self._rune_selection.pop(champ_key, None)
         self.changed.emit()
 
-    def save_preset(self, champ_id: Any, slot: int, page: dict) -> None:
+    def save_preset(self, champ_id: Any, slot: int, page: dict, role: str | None = None) -> None:
         """Stores a rune page and selects it, mirroring what the dialog just did."""
         if str(slot) not in RUNE_SLOTS:
             return
         champ_key = str(champ_id)
         self._custom_runes.setdefault(champ_key, {})[str(slot)] = _clone_page(page)
-        self._rune_selection[champ_key] = int(slot)
+        if role is None:
+            self._rune_selection[champ_key] = int(slot)
+        else:
+            self._role_rune_selection.setdefault(role, {})[champ_key] = int(slot)
         self.changed.emit()
 
     def delete_preset(self, champ_id: Any, slot: int) -> None:
@@ -117,6 +159,9 @@ class ChampionSelectionModel(QObject):
 
         if self._rune_selection.get(champ_key) == int(slot):
             self._rune_selection.pop(champ_key, None)
+        for entries in self._role_rune_selection.values():
+            if entries.get(champ_key) == int(slot):
+                entries[champ_key] = 0
         self.changed.emit()
 
     # -- skins ---------------------------------------------------------------

@@ -14,6 +14,8 @@ export const healthSchema = z.object({
     code: z.enum(['no_preference', 'all_unavailable', 'pick_failed', 'manual_hover']),
     role: z.string(), champion_id: z.number().int().positive().nullable(),
   }).nullable().optional(),
+  rune_notice: z.object({ id: z.number().int().positive(), code: z.enum(['rune_fallback', 'rune_unavailable']),
+    role: z.string(), champion_id: z.number().int().positive().nullable() }).nullable().optional(),
 })
 export type SelectionNotice = NonNullable<z.infer<typeof healthSchema>['selection']>
 export const settingsSchema = z.object({
@@ -24,6 +26,7 @@ export const settingsSchema = z.object({
   role_bans_ui: z.record(z.string(), z.number().int().positive().nullable()),
   custom_runes: z.record(z.string(), z.unknown()),
   rune_selection: z.record(z.string(), z.number().int()),
+  role_rune_selection: z.record(z.string(), z.record(z.string(), z.number().int().min(0).max(3))).default({}),
   custom_skins: z.record(z.string(), z.unknown()),
   custom_summoner_spells: z.record(z.string(), z.record(z.string(), spellPairSchema)),
 }).passthrough()
@@ -38,6 +41,7 @@ export const automationSchema = z.object({
   role_bans: z.record(z.string(), z.number().int().positive()),
   custom_runes: settingsSchema.shape.custom_runes,
   rune_selection: settingsSchema.shape.rune_selection,
+  role_rune_selection: settingsSchema.shape.role_rune_selection,
   custom_skins: settingsSchema.shape.custom_skins,
   auto_queue: z.boolean(),
 })

@@ -81,6 +81,12 @@ def run(executable: Path) -> dict:
             revision = loaded.headers["etag"]
             settings = json.load(loaded)
             assert settings["queue_name"] == "Ranked Flex"
+            assert settings["role_rune_selection"] == {}
+            settings["role_rune_selection"] = {
+                "TOP": {"106": 1},
+                "MIDDLE": {"106": 2},
+                "JUNGLE": {"106": 0},
+            }
             assert (
                 request(
                     "/settings", method="PUT", data=settings, headers={"If-Match": revision}
@@ -90,6 +96,11 @@ def run(executable: Path) -> dict:
             assert "accounts" not in json.loads(
                 (profile / "user_config.json").read_text(encoding="utf-8")
             )
+            assert (
+                json.load(request("/settings"))["role_rune_selection"]
+                == settings["role_rune_selection"]
+            )
+            assert json.load(request("/health"))["running"] is False
             # Closing the controlling pipe simulates the native parent's exit.
             child.stdin.close()
             assert child.wait(timeout=20) == 0
@@ -100,6 +111,7 @@ def run(executable: Path) -> dict:
                 "source_free": True,
                 "isolated_profile": True,
                 "parent_eof_shutdown": True,
+                "role_rune_round_trip": True,
                 "startup_seconds": round(time.monotonic() - started, 2),
             }
         finally:

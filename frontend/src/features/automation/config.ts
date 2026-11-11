@@ -101,6 +101,6 @@ export function automationPayload(config: Settings, catalog: ChampionCatalog): A
     secondary_summoner_spell: roleSpells[primary ?? '']?.spell2Id ?? null,
     role_summoner_spells: roleSpells, role_champions: roleChampions, role_bans: roleBans,
     custom_summoner_spells: config.custom_summoner_spells, custom_runes: config.custom_runes,
-    rune_selection: config.rune_selection, custom_skins: config.custom_skins, auto_queue: true,
+    rune_selection: config.rune_selection, role_rune_selection: config.role_rune_selection, custom_skins: config.custom_skins, auto_queue: true,
   }
 }

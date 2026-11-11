@@ -5,7 +5,7 @@ import { initialRole } from './selection'
 import { SettingsWriter } from '../settings/SettingsWriter'
 import { AutomationController } from '../automation/AutomationController'
 import { automationIssues, automationPayload, movePick, queues, roleKey, selectChampion, setSpell } from '../automation/config'
-import { preset, restorePreset, withPreset, withoutPreset } from '../runes/model'
+import { assignPreset, hasPreset, preset, restorePreset, withPreset, withoutPreset } from '../runes/model'
 import type { PresetSlot } from '../runes/model'
 import { withSkin } from '../skins/model'
 
@@ -20,6 +20,11 @@ export function useChampionWorkspace(api: PilotApi) {
     runtime.current = { api, writer: new SettingsWriter(api), engine: new AutomationController(api) }
   }
   const { writer, engine } = runtime.current
+  const failedRuneRoles = useRef(new Map<string, RoleKey>())
+  const failedRuneDeletes = useRef(new Map<string, Set<RoleKey>>())
+  const noteRuneAssignment = (id: number, runeRole: RoleKey) => {
+    for (const [context, roles] of failedRuneDeletes.current) if (context.startsWith(`${id}:`)) roles.add(runeRole)
+  }
   const saveState = useSyncExternalStore(writer.subscribe, writer.getSnapshot)
   const automation = useSyncExternalStore(engine.subscribe, engine.getSnapshot)
   const [settings, setSettings] = useState<Resource<Settings>>({ loading: true })
@@ -182,6 +187,8 @@ export function useChampionWorkspace(api: PilotApi) {
       const data = await api.settings(new AbortController().signal)
       if (!mounted.current) return
       writer.replace(data)
+      failedRuneRoles.current.clear()
+      failedRuneDeletes.current.clear()
       settingsRef.current = data
       setSettings({ data, loading: false })
       setActionError(undefined)
@@ -206,36 +213,53 @@ export function useChampionWorkspace(api: PilotApi) {
       await writer.flush()
     } finally { actionGate.current = false; if (mounted.current) setRuneBusy(false) }
   }
-  const saveRunePreset = (id: number, slot: PresetSlot, page: RunePage) => mutateRunes(async () => {
-    const validated = await api.validateRune({ ...page, name: page.name.trim() })
-    return (config) => withPreset(config, id, slot, validated)
-  })
-  const deleteRunePreset = (id: number, slot: PresetSlot) => mutateRunes(async () => (config) => withoutPreset(config, id, slot))
-  const discardRunePreset = async (id: number, slot: PresetSlot) => {
+  const saveRunePreset = async (id: number, slot: PresetSlot, page: RunePage, runeRole: RoleKey) => {
+    let edited = false
+    try {
+      await mutateRunes(async () => {
+        const validated = await api.validateRune({ ...page, name: page.name.trim() })
+        return (config) => { edited = true; noteRuneAssignment(id, runeRole); return withPreset(config, id, slot, validated, runeRole) }
+      })
+      failedRuneRoles.current.delete(`${id}:${slot}`)
+    } catch (error) { if (edited) failedRuneRoles.current.set(`${id}:${slot}`, runeRole); throw error }
+  }
+  const deleteRunePreset = async (id: number, slot: PresetSlot) => {
+    let edited = false
+    const repeatingPendingDelete = failedRuneDeletes.current.has(`${id}:${slot}`) && !hasPreset(writer.getSnapshot().draft, id, slot)
+    try {
+      await mutateRunes(async () => (config) => { edited = true; return withoutPreset(config, id, slot) })
+      failedRuneDeletes.current.delete(`${id}:${slot}`)
+    } catch (error) { if (edited && !repeatingPendingDelete) failedRuneDeletes.current.set(`${id}:${slot}`, new Set()); throw error }
+  }
+  const canDiscardRunePreset = (id: number, slot: PresetSlot) => {
+    const snapshot = writer.getSnapshot()
+    const raw = (config?: Settings) => (config?.custom_runes[String(id)] as Record<string, unknown> | undefined)?.[String(slot)]
+    return snapshot.dirty && JSON.stringify(raw(snapshot.draft)) !== JSON.stringify(raw(snapshot.saved))
+  }
+  const discardRunePreset = async (id: number, slot: PresetSlot, runeRole: RoleKey) => {
+    const originalRole = failedRuneRoles.current.get(`${id}:${slot}`) ?? runeRole
+    const preserve = failedRuneDeletes.current.get(`${id}:${slot}`)
     const snapshot = writer.getSnapshot()
     if (!snapshot.draft || !snapshot.saved) return
-    const restored = restorePreset(snapshot.draft, snapshot.saved, id, slot)
+    const restored = restorePreset(snapshot.draft, snapshot.saved, id, slot, originalRole, preserve)
     // A failed save may already have committed. Restore this context through
     // the ordered writer as well; clearing only the form would leave it queued.
     if (JSON.stringify(restored) !== JSON.stringify(snapshot.draft)) {
-      await mutateRunes(async () => (config) => restorePreset(config, snapshot.saved!, id, slot))
+      await mutateRunes(async () => (config) => restorePreset(config, snapshot.saved!, id, slot, originalRole, preserve))
     }
+    failedRuneRoles.current.delete(`${id}:${slot}`)
+    failedRuneDeletes.current.delete(`${id}:${slot}`)
   }
-  const selectRunePreset = (id: number, slot: 0 | PresetSlot) => mutateRunes(async () => {
+  const selectRunePreset = (id: number, slot: 0 | PresetSlot | null, runeRole: RoleKey) => mutateRunes(async () => {
     if (slot === 0) {
       const recommendation = await api.recommendedRune(id, new AbortController().signal)
       if (!recommendation.page) throw new Error('Bu şampiyon için güncel katalogla uyumlu öneri bulunamadı.')
-    } else {
+    } else if (slot !== null) {
       const page = preset(writer.getSnapshot().draft, id, slot)
       if (!page) throw new Error('Bu preset okunamadı. Önce düzenleyip kaydet.')
       await api.validateRune(page)
     }
-    return (config) => {
-      const next = structuredClone(config)
-      if (slot === 0) delete next.rune_selection[String(id)]
-      else next.rune_selection[String(id)] = slot
-      return next
-    }
+    return (config) => { noteRuneAssignment(id, runeRole); return assignPreset(config, id, slot, runeRole) }
   })
 
   const suspendConnection = () => { commandEpoch.current++; writer.suspend(); engine.suspendConnection() }
@@ -263,8 +287,8 @@ export function useChampionWorkspace(api: PilotApi) {
   return { health, settings, catalog, draft: saveState.draft, role, setRole, target, setTarget,
     ready: editable, dirty: saveState.dirty, saveState, automation, preparing, closing, ended,
     portraitRetryKey: attempt,
-    runeBusy, runeEditorDirty, setRuneEditorDirty, saveRunePreset, deleteRunePreset, discardRunePreset, selectRunePreset,
+    runeBusy, runeEditorDirty, setRuneEditorDirty, saveRunePreset, deleteRunePreset, discardRunePreset, selectRunePreset, canDiscardRunePreset,
     actionError, choose, editSettings, changeSpell, changeSkin, reorder, start, stop, finish, recoverFinish, reloadSettings, apply, suspendConnection, resumeConnection,
-    save: () => { void writer.flush().catch(() => {}) }, reset: () => writer.reset(),
+    save: () => { void writer.flush().catch(() => {}) }, reset: () => { writer.reset(); failedRuneRoles.current.clear(); failedRuneDeletes.current.clear() },
     retry: () => { setAttempt((value) => value + 1); void engine.check() } }
 }

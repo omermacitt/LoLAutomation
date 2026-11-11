@@ -27,6 +27,7 @@ from rune_pilot.application.skin_query import SkinQuery
 from rune_pilot.application.update_service import UpdateService
 from rune_pilot.composition.endpoints import register_routes
 from rune_pilot.composition.update_endpoints import register_update_routes
+from rune_pilot.domain.rune_editor import RunePage
 from rune_pilot.infrastructure.config_repository import ConfigRepository
 from rune_pilot.infrastructure.github_updates import GithubUpdateSource
 from rune_pilot.infrastructure.league_client_adapter import LcuLeagueClient
@@ -74,8 +75,6 @@ def create_app(
     skins = SkinQuery(client)
     lobby = LobbyService(client, champions)
     runes = RuneService(source, champions)
-    runner = AutomationRunner(client, champions, runes, lobby)
-    application.state.selection_feedback = runner.feedback
     application.state.champions = champions
     application.state.champion_portraits = ChampionPortraitQuery(client)
     application.state.skin_artwork = SkinArtworkQuery(client)
@@ -94,9 +93,6 @@ def create_app(
         )
     )
     repository = config_service.repository if config_service is not None else ConfigRepository()
-    application.state.automation = (
-        automation_service if automation_service is not None else AutomationService(runner.run)
-    )
     application.state.settings = (
         config_service if config_service is not None else ConfigService(repository)
     )
@@ -115,6 +111,19 @@ def create_app(
     )
     application.state.rune_editor = RuneEditorService(
         application.state.game_queries, runes.get_recommended_page_for_champion
+    )
+    runner = AutomationRunner(
+        client,
+        champions,
+        runes,
+        lobby,
+        validate_rune=lambda page: application.state.rune_editor.validate(
+            RunePage.model_validate(page)
+        ).model_dump(),
+    )
+    application.state.selection_feedback = runner.feedback
+    application.state.automation = (
+        automation_service if automation_service is not None else AutomationService(runner.run)
     )
     register_routes(application)
     register_update_routes(application)

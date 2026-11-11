@@ -317,6 +317,7 @@ class RoleTab(QWidget):
         row.rune_select.blockSignals(True)
         try:
             row.rune_select.clear()
+            row.rune_select.addItem("Use default (inherited)", -1)
             row.rune_select.addItem("Recommended", RECOMMENDED_SLOT)
 
             if champ_id is None:
@@ -334,7 +335,13 @@ class RoleTab(QWidget):
                     f"Custom {slot}: {name}" if name else f"Custom {slot}", slot
                 )
 
-            selected = row.rune_select.findData(self.model.selected_slot(champ_id))
+            choice = self.model.selected_slot(champ_id, self.role_key)
+            inherited = not self.model.has_role_assignment(champ_id, self.role_key)
+            default = self.model.selected_slot(champ_id)
+            row.rune_select.setItemText(
+                0, f"Default: {'Preset ' + str(default) if default else 'Recommended'}"
+            )
+            selected = row.rune_select.findData(-1 if inherited else choice)
             row.rune_select.setCurrentIndex(selected if selected >= 0 else 0)
             # Nothing to choose between when only "Recommended" is there.
             row.rune_select.setEnabled(row.rune_select.count() > 1)
@@ -426,7 +433,7 @@ class RoleTab(QWidget):
             slot = int(row.rune_select.currentData() or RECOMMENDED_SLOT)
         except (TypeError, ValueError):
             slot = RECOMMENDED_SLOT
-        self.model.set_selected_slot(champ_id, slot)
+        self.model.set_selected_slot(champ_id, slot, self.role_key)
 
     # -- dialogs -------------------------------------------------------------
 
@@ -441,9 +448,13 @@ class RoleTab(QWidget):
         dialog = RunePresetsDialog(
             champion_id=champ_id,
             champion_name=row.champion.currentText(),
+            role_name=self.role_key,
+            impact_roles=lambda slot, cid=champ_id: self.model.roles_using_preset(cid, slot),
             existing_presets=presets,
             initial_slot=self._initial_rune_slot(champ_id, presets),
-            on_save_preset=lambda slot, page, cid=champ_id: self.model.save_preset(cid, slot, page),
+            on_save_preset=lambda slot, page, cid=champ_id: self.model.save_preset(
+                cid, slot, page, self.role_key
+            ),
             on_delete_preset=lambda slot, cid=champ_id: self.model.delete_preset(cid, slot),
             api_client=self._client,
             parent=self,
@@ -452,7 +463,7 @@ class RoleTab(QWidget):
 
     def _initial_rune_slot(self, champ_id: int, presets: dict[str, dict]) -> int:
         """Opens on the selected preset, else the first one that exists, else slot 1."""
-        selected = self.model.selected_slot(champ_id)
+        selected = self.model.selected_slot(champ_id, self.role_key)
         if selected in RUNE_SLOTS:
             return selected
         for slot in RUNE_SLOTS:
