@@ -4,6 +4,26 @@ RunePilot is a Windows automation tool for League of Legends. It uses the local
 League Client API (LCU) to manage champion picks, bans, rune pages, summoner spells
 and skins from your saved preferences.
 
+## Why RunePilot exists
+
+RunePilot started with a familiar problem: long matchmaking waits and those
+moments when you need to step away from your computer briefly. If you already
+know what you want to play, it can handle your configured pre-game routine while
+you spend less time watching the queue and champion-select screens.
+
+It works best when your **roles, champion preferences, rune presets and skins
+are set up before you start**. If those choices are still undecided, configure
+them first or make your selections manually. Be ready to return for any manual
+selection handoff and to play the match. The goal is to make waiting easier;
+we still want our teammates to have a good game. :D
+
+**RunePilot currently does not choose champions or runes based on the opposing
+team.** It follows your saved champion priorities and rune preferences, with
+bundled recommendations available. Matchup-aware champion and rune selection
+are planned for future updates.
+
+## Current application
+
 The project has a modern **React + TypeScript** development interface and a
 **PyQt6** desktop client. Both use the same layered Python/FastAPI backend.
 The planned Tauri desktop shell is not implemented yet; the React interface
