@@ -5,7 +5,7 @@ import { catalog, deferred, health, settings } from '../src/test/fixtures'
 import { runeCatalog, runePage } from '../src/test/runeFixtures'
 
 const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aU1cAAAAASUVORK5CYII=', 'base64')
-async function mockRunes(page: Page) {
+async function mockRunes(page: Page, editorCatalog = runeCatalog) {
   const initial = structuredClone(settings)
   initial.custom_runes = { '103': { '2': { ...runePage, name: 'Other champion' } } }
   initial.rune_selection = { '103': 2 }
@@ -19,7 +19,7 @@ async function mockRunes(page: Page) {
     if (path === '/api/health') return route.fulfill({ json: health })
     if (path === '/api/session') return route.fulfill({ json: { token: 'development-session-token-12345' } })
     if (path === '/api/champion-catalog') return route.fulfill({ json: catalog })
-    if (path === '/api/runes/editor-catalog') return route.fulfill({ status: state.failCatalog ? 503 : 200, json: runeCatalog })
+    if (path === '/api/runes/editor-catalog') return route.fulfill({ status: state.failCatalog ? 503 : 200, json: editorCatalog })
     if (path.endsWith('/runes/recommended')) {
       const id = Number(path.split('/')[3])
       return route.fulfill({ json: { champion_id: id, source: 'bundled', page: state.recommendation === 'valid' ? { ...runePage, name: 'Recommended' } : null,
@@ -48,6 +48,63 @@ async function mockRunes(page: Page) {
   await expect(page.getByRole('button', { name: 'Rün Preset 1', exact: true })).toBeEnabled()
   return state
 }
+
+test('compact rune editor uses a 3 by 3 shard grid and keeps actions visible', async ({ page }, info) => {
+  if (info.project.name !== 'mobile-width') await page.setViewportSize(info.project.name === 'compact' ? { width: 1024, height: 768 } : { width: 1440, height: 900 })
+  const fullCatalog = structuredClone(runeCatalog)
+  for (const id of [8200, 8300, 8400]) fullCatalog.styles.push({ ...structuredClone(runeCatalog.styles[0]), id, name: `Style ${id}` })
+  await mockRunes(page, fullCatalog)
+  await page.getByRole('button', { name: 'Rün Preset 1', exact: true }).click()
+  const shards = page.getByRole('region', { name: 'Nitelik parçaları', exact: true })
+  const rows = shards.getByRole('group')
+  await expect(rows).toHaveCount(3)
+  for (let index = 0; index < 3; index++) await expect(rows.nth(index).getByRole('button')).toHaveCount(3)
+  const geometry = await rows.evaluateAll((nodes) => nodes.map((row) => [...row.querySelectorAll('button')].map((button) => {
+    const box = button.getBoundingClientRect(); return { x: box.x, y: box.y, width: box.width, height: box.height }
+  })))
+  for (let index = 0; index < 3; index++) {
+    expect(new Set(geometry[index].map((box) => Math.round(box.y))).size).toBe(1)
+    expect(geometry[index].map((box) => Math.round(box.x))).toEqual(geometry[0].map((box) => Math.round(box.x)))
+    if (index > 0) expect(geometry[index][0].y).toBeGreaterThan(geometry[index - 1][0].y)
+  }
+  await expect(page.getByLabel('Rün özeti', { exact: true })).toHaveCount(0)
+  await expect(page.locator('.rune-draft-note')).toHaveCount(0)
+  await expect(page.getByText('Kaydedilmemiş rün düzenlemesi', { exact: true })).toHaveCount(0)
+  if (info.project.name !== 'mobile-width') {
+    await expect(page.getByRole('button', { name: 'Preseti kaydet', exact: true })).toBeInViewport({ ratio: 1 })
+    await expect(page.getByRole('button', { name: 'Kaydet ve oturumu bitir', exact: true })).toBeInViewport({ ratio: 1 })
+    expect(await page.evaluate(() => scrollY)).toBe(0)
+  }
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+  const choice = page.getByRole('button', { name: 'Nitelik 2: Rune 5001', exact: true })
+  await choice.focus()
+  await page.keyboard.press('Enter')
+  await expect(choice).toHaveAttribute('aria-pressed', 'true')
+  await expect(choice.locator('.rune-choice__tooltip')).toBeVisible()
+  await page.screenshot({ path: info.outputPath('compact-rune-editor.png'), fullPage: true })
+})
+
+test('read-only rune descriptions support keyboard access and drafts keep an accurate status', async ({ page }) => {
+  const state = await mockRunes(page)
+  const choice = page.getByRole('button', { name: 'Ana 1: Rune 8002', exact: true })
+  await choice.focus()
+  await page.keyboard.press('Tab')
+  await page.keyboard.press('Shift+Tab')
+  await expect(choice).toBeFocused()
+  await expect(choice.locator('.rune-choice__tooltip')).toBeVisible()
+  await page.keyboard.press('Enter')
+  await expect(choice).toHaveAttribute('aria-pressed', 'false')
+  expect(state.writes).toBe(0)
+  await page.getByRole('button', { name: 'Rün Preset 1', exact: true }).click()
+  await page.getByRole('textbox', { name: 'Rün preset adı' }).fill('Local draft')
+  await expect(page.getByText('Kaydedilmemiş rün düzenlemesi', { exact: true })).toHaveCount(0)
+  await page.getByRole('button', { name: 'Şampiyonlar', exact: true }).click()
+  await expect(page.getByText('Rün düzenleniyor', { exact: true })).toBeVisible()
+  await expect(page.getByText('Ayarlar güncel', { exact: true })).toHaveCount(0)
+  await page.getByRole('button', { name: 'Kaydet ve oturumu bitir' }).click()
+  expect(state.stops).toBe(0)
+  await expect(page.getByText('Kaydedilmemiş rün düzenlemeleri var.', { exact: false })).toBeVisible()
+})
 
 test('saving remains visible when a translator wraps the button label during the request', async ({ page }) => {
   const errors: string[] = []

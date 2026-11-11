@@ -43,6 +43,5 @@ export function GameControls({ workspace: w }: { workspace: Workspace }) {
     </div>
     {w.ready && issues.length > 0 && <details className="start-requirements"><summary>Başlatmak için {issues.length} seçim kaldı</summary><ul>{issues.map((issue) => <li key={issue}>{issue}</li>)}</ul></details>}
     {w.ready && autofill.length > 0 && <p className="autofill-note">Autofill hazırlığı eksik: {autofill.join(', ')}. Bu rollere atanırsan eksik seçimleri League istemcisinde elle tamamlaman gerekebilir.</p>}
-    {w.runeEditorDirty && <p className="rune-draft-note">Rünler bölümünde kaydedilmemiş düzenlemelerin var. Başlatmadan veya çıkmadan önce kaydet ya da geri al.</p>}
   </section>
 }
