@@ -6,6 +6,22 @@ import { SettingsWriter } from './SettingsWriter'
 
 afterEach(() => vi.useRealTimers())
 describe('ordered settings writes', () => {
+  it('retains drafts on disconnect without replaying scheduled saves on reconnect', async () => {
+    vi.useFakeTimers()
+    const saveSettings = vi.fn(async (config: Settings) => config)
+    const writer = new SettingsWriter({ saveSettings })
+    writer.initialize(settings)
+    writer.edit((config) => ({ ...config, queue_name: 'Ranked Flex' }))
+    writer.suspend()
+    await vi.advanceTimersByTimeAsync(2_000)
+    await expect(writer.flush()).rejects.toThrow('yeniden kur')
+    writer.resume()
+    await vi.advanceTimersByTimeAsync(2_000)
+    expect(saveSettings).not.toHaveBeenCalled()
+    expect(writer.getSnapshot().dirty).toBe(true)
+    await writer.flush()
+    expect(saveSettings.mock.calls[0][0].queue_name).toBe('Ranked Flex')
+  })
   it('does not save initial data and coalesces a burst of edits', async () => {
     vi.useFakeTimers()
     const saveSettings = vi.fn(async (config: Settings) => config)

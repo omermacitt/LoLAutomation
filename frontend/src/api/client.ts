@@ -1,18 +1,19 @@
 import { z } from 'zod'
 import { catalogSchema, healthSchema, settingsSchema, startResultSchema, stopResultSchema, runePageSchema, runeEditorCatalogSchema, runeRecommendationSchema, skinOptionsSchema } from './contracts'
 import type { AutomationConfig, PilotApi, Settings, RunePage } from './contracts'
+import { desktopAssetUrl, desktopFetch } from '../desktop/transport'
 
 export class ApiError extends Error {
   constructor(message: string, readonly status?: number) { super(message) }
 }
 
 export function championPortraitUrl(id: number): string | undefined {
-  return Number.isSafeInteger(id) && id > 0 ? `/api/champions/${id}/portrait` : undefined
+  return Number.isSafeInteger(id) && id > 0 ? desktopAssetUrl(`/champions/${id}/portrait`) : undefined
 }
 
-export const runeIconUrl = (id: number) => Number.isSafeInteger(id) && id > 0 ? `/api/runes/icons/${id}` : undefined
+export const runeIconUrl = (id: number) => Number.isSafeInteger(id) && id > 0 ? desktopAssetUrl(`/runes/icons/${id}`) : undefined
 export const skinArtworkUrl = (championId: number, skinId: number) => Number.isSafeInteger(championId) && championId > 0
-  && Number.isSafeInteger(skinId) && Math.floor(skinId / 1000) === championId ? `/api/champions/${championId}/skins/${skinId}/artwork` : undefined
+  && Number.isSafeInteger(skinId) && Math.floor(skinId / 1000) === championId ? desktopAssetUrl(`/champions/${championId}/skins/${skinId}/artwork`) : undefined
 
 export const sameSettings = (a: Settings, b: Settings) => stableJson(a) === stableJson(b)
 function stableJson(value: unknown): string {
@@ -25,7 +26,7 @@ export class ApiClient implements PilotApi {
   private revision?: string
   private session?: string
   private uncertain?: { config: Settings; revision: string }
-  constructor(private readonly fetcher: typeof fetch = (...args) => fetch(...args)) {}
+  constructor(private readonly fetcher: typeof fetch = (...args) => desktopFetch(...args)) {}
 
   private async request<T>(path: string, schema: z.ZodType<T>, signal: AbortSignal,
     options: { method?: string; body?: unknown; headers?: Record<string, string> } = {}): Promise<{ data: T; revision?: string }> {

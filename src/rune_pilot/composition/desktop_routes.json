@@ -1,0 +1,16 @@
+[
+  {"method":"GET","pattern":"/health","image":false},
+  {"method":"GET","pattern":"/settings","image":false},
+  {"method":"PUT","pattern":"/settings","image":false},
+  {"method":"GET","pattern":"/champion-catalog","image":false},
+  {"method":"POST","pattern":"/start_automation","image":false},
+  {"method":"POST","pattern":"/stop_automation","image":false},
+  {"method":"PUT","pattern":"/automation/config","image":false},
+  {"method":"GET","pattern":"/runes/editor-catalog","image":false},
+  {"method":"POST","pattern":"/runes/validate","image":false},
+  {"method":"GET","pattern":"/champions/[1-9][0-9]*/runes/recommended","image":false},
+  {"method":"GET","pattern":"/champions/[1-9][0-9]*/skins","image":false},
+  {"method":"GET","pattern":"/champions/[1-9][0-9]*/portrait","image":true},
+  {"method":"GET","pattern":"/champions/[1-9][0-9]*/skins/[1-9][0-9]*/artwork","image":true},
+  {"method":"GET","pattern":"/runes/icons/[1-9][0-9]*","image":true}
+]

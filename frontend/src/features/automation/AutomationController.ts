@@ -36,6 +36,10 @@ export class AutomationController {
   }
   cancelRead = () => { this.read?.abort(); this.polling = false }
   clearError = () => this.publish({ error: undefined })
+  suspendConnection = () => {
+    this.epoch++; this.pending = undefined; this.stoppedByUser = true; this.cancelRead()
+    this.publish({ health: undefined, checking: false, busy: undefined })
+  }
 
   start(config: AutomationConfig) {
     if (this.state.busy) return Promise.reject(new Error('Bir işlem zaten sürüyor.'))
@@ -63,6 +67,7 @@ export class AutomationController {
     this.stoppedByUser = true
     this.publish({ busy: 'stopping', error: undefined })
     return this.enqueue(async () => {
+      if (epoch !== this.epoch) return
       try {
         await this.api.stop()
         const health = await this.confirm()

@@ -1,0 +1,11 @@
+{
+  "owner": "Riot Games",
+  "archive": "CommunityDragon (community-maintained, not an official Riot service)",
+  "retrieved": "2026-11-11",
+  "files": {
+    "champions.svg": "https://raw.communitydragon.org/latest/plugins/rcp-fe-lol-static-assets/global/default/images/champions_rewards.svg",
+    "runes.svg": "https://raw.communitydragon.org/latest/plugins/rcp-fe-lol-collections/global/default/perks/images/runes.svg",
+    "skins.svg": "https://raw.communitydragon.org/latest/plugins/rcp-fe-lol-static-assets/global/default/images/skins_rewards.svg"
+  },
+  "usage": "Original SVG shapes; rendered as masks to inherit the application text color."
+}

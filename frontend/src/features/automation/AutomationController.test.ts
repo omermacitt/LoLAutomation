@@ -10,6 +10,18 @@ const api = () => ({ health: vi.fn<PilotApi['health']>().mockResolvedValue(healt
   update: vi.fn<PilotApi['update']>().mockResolvedValue({ status: 'updated', config: payload }), stop: vi.fn<PilotApi['stop']>().mockResolvedValue(undefined) })
 
 describe('automation ordering', () => {
+  it('invalidates queued Start and updates when the native connection changes', async () => {
+    const client = api()
+    const controller = new AutomationController(client)
+    const start = controller.start(payload)
+    controller.suspendConnection()
+    await start
+    await controller.check()
+    controller.update(payload)
+    expect(client.start).not.toHaveBeenCalled()
+    expect(client.update).not.toHaveBeenCalled()
+    expect(controller.getSnapshot().busy).toBeUndefined()
+  })
   it('ignores a pre-start poll that arrives after a successful start', async () => {
     const pending = deferred<Health>()
     const client = api()

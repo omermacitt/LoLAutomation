@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "main-window",
+  "description": "Only the local RunePilot window can use desktop events.",
+  "windows": ["main"],
+  "permissions": ["core:default"]
+}

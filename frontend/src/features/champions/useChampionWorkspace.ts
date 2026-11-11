@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import type { ChampionCatalog, PilotApi, Settings, RunePage, SkinOptions } from '../../api/contracts'
 import type { RoleKey, Target } from './selection'
 import { initialRole } from './selection'
@@ -13,8 +13,13 @@ type Resource<T> = { data?: T; loading: boolean; error?: string }
 const message = (error: unknown) => error instanceof Error ? error.message : 'İşlem tamamlanamadı.'
 
 export function useChampionWorkspace(api: PilotApi) {
-  const writer = useMemo(() => new SettingsWriter(api), [api])
-  const engine = useMemo(() => new AutomationController(api), [api])
+  // These controllers own drafts and queued commands. Fast Refresh may discard
+  // memo caches while preserving refs, so their lifetime cannot depend on useMemo.
+  const runtime = useRef<{ api: PilotApi; writer: SettingsWriter; engine: AutomationController } | null>(null)
+  if (!runtime.current || runtime.current.api !== api) {
+    runtime.current = { api, writer: new SettingsWriter(api), engine: new AutomationController(api) }
+  }
+  const { writer, engine } = runtime.current
   const saveState = useSyncExternalStore(writer.subscribe, writer.getSnapshot)
   const automation = useSyncExternalStore(engine.subscribe, engine.getSnapshot)
   const [settings, setSettings] = useState<Resource<Settings>>({ loading: true })
@@ -152,17 +157,21 @@ export function useChampionWorkspace(api: PilotApi) {
     try { await engine.stop() } catch (error) { if (mounted.current) setActionError(message(error)) }
   }
   const finish = async () => {
-    if (actionGate.current || closing || ended || automation.busy) return
-    if (runeEditorDirty) { setActionError('Kaydedilmemiş rün düzenlemeleri var. Önce rün editöründen kaydet veya geri al.'); return }
+    if (ended) return true
+    if (actionGate.current || closing || automation.busy) return false
+    if (runeEditorDirty) { setActionError('Kaydedilmemiş rün düzenlemeleri var. Önce rün editöründen kaydet veya geri al.'); return false }
     actionGate.current = true
-    commandEpoch.current++
+    const epoch = ++commandEpoch.current
     setClosing(true)
     setActionError(undefined)
     try {
       if (writer.getSnapshot().draft) await writer.flush()
+      if (epoch !== commandEpoch.current) throw new Error('Bağlantı değişti. Yeniden bağlanıp çıkışı tekrar dene.')
       await engine.stop()
+      if (epoch !== commandEpoch.current) throw new Error('Bağlantı değişti. Yeniden bağlanıp çıkışı tekrar dene.')
       if (mounted.current) setEnded(true)
-    } catch (error) { if (mounted.current) setActionError(message(error)) }
+      return true
+    } catch (error) { if (mounted.current) setActionError(message(error)); return false }
     finally { actionGate.current = false; if (mounted.current) setClosing(false) }
   }
   const reloadSettings = async () => {
@@ -229,6 +238,18 @@ export function useChampionWorkspace(api: PilotApi) {
     }
   })
 
+  const suspendConnection = () => { commandEpoch.current++; writer.suspend(); engine.suspendConnection() }
+  const resumeConnection = () => { writer.resume(); setAttempt((value) => value + 1); void engine.check() }
+  // Used only after explicit confirmation in the native error fallback. React
+  // has unmounted App, so render-time busy/dirty flags cannot gate recovery.
+  const recoverFinish = async () => {
+    const epoch = ++commandEpoch.current
+    if (writer.getSnapshot().draft) await writer.flush()
+    if (epoch !== commandEpoch.current) throw new Error('Bağlantı değişti. Yeniden bağlanıp çıkışı tekrar dene.')
+    await engine.stop()
+    if (epoch !== commandEpoch.current) throw new Error('Bağlantı değişti. Yeniden bağlanıp çıkışı tekrar dene.')
+  }
+
   const needsGuard = saveState.dirty || saveState.saving || preparing || closing || runeBusy || runeEditorDirty
     || (!ended && (automation.health?.running === true || Boolean(automation.busy) || !automation.health))
   useEffect(() => {
@@ -243,7 +264,7 @@ export function useChampionWorkspace(api: PilotApi) {
     ready: editable, dirty: saveState.dirty, saveState, automation, preparing, closing, ended,
     portraitRetryKey: attempt,
     runeBusy, runeEditorDirty, setRuneEditorDirty, saveRunePreset, deleteRunePreset, discardRunePreset, selectRunePreset,
-    actionError, choose, editSettings, changeSpell, changeSkin, reorder, start, stop, finish, reloadSettings, apply,
+    actionError, choose, editSettings, changeSpell, changeSkin, reorder, start, stop, finish, recoverFinish, reloadSettings, apply, suspendConnection, resumeConnection,
     save: () => { void writer.flush().catch(() => {}) }, reset: () => writer.reset(),
     retry: () => { setAttempt((value) => value + 1); void engine.check() } }
 }

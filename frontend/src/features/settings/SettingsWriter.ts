@@ -11,6 +11,7 @@ export class SettingsWriter {
   private timer?: ReturnType<typeof setTimeout>
   private inflight?: Promise<void>
   private version = 0
+  private paused = false
   constructor(private readonly api: Pick<PilotApi, 'saveSettings'>, private readonly debounce = 500) {}
   getSnapshot = () => this.state
   subscribe = (listener: () => void) => { this.listeners.add(listener); return () => { this.listeners.delete(listener) } }
@@ -34,7 +35,7 @@ export class SettingsWriter {
     this.version++
     this.publish({ draft, dirty: true, error: this.state.conflict ? this.state.error : undefined })
     this.cancelScheduled()
-    if (!this.state.conflict) this.timer = setTimeout(() => { void this.flush().catch(() => {}) }, this.debounce)
+    if (!this.state.conflict && !this.paused) this.timer = setTimeout(() => { void this.flush().catch(() => {}) }, this.debounce)
   }
   reset() {
     if (!this.state.saved || this.inflight || this.state.conflict) return
@@ -44,9 +45,12 @@ export class SettingsWriter {
     this.edit(() => saved)
   }
   cancelScheduled = () => { clearTimeout(this.timer); this.timer = undefined }
+  suspend = () => { this.paused = true; this.cancelScheduled() }
+  resume = () => { this.paused = false }
 
   async flush(): Promise<Settings> {
     this.cancelScheduled()
+    if (this.paused) throw new Error('Önce uygulama bağlantısını yeniden kur.')
     if (!this.state.draft) throw new Error('Ayarlar henüz yüklenmedi.')
     if (this.state.conflict) throw new Error(this.state.error)
     if (this.inflight) { await this.inflight; return this.flush() }

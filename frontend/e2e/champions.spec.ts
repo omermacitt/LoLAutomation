@@ -284,6 +284,7 @@ test('portraits load and failed images retry without changing selections', async
 })
 
 test('live backend reads and concurrency header work without mutating the real profile', async ({ page, request }, testInfo) => {
+  test.skip(process.env.RUNEPILOT_LIVE_READS !== '1', 'Opt in with RUNEPILOT_LIVE_READS=1 and a running backend.')
   test.skip(testInfo.project.name !== 'desktop', 'One live integration check is enough.')
   const response = await request.get('/api/health')
   test.skip(!response.ok(), 'Start python main.py to include the live check.')

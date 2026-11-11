@@ -148,6 +148,7 @@ test('failed autosave retains the newest skin until retry succeeds', async ({ pa
 })
 
 test('live League gallery and JPEG artwork render without changing the profile', async ({ page }, info) => {
+  test.skip(process.env.RUNEPILOT_LIVE_READS !== '1', 'Opt in with RUNEPILOT_LIVE_READS=1 and a running League client.')
   test.skip(info.project.name !== 'desktop', 'One read-only live check is sufficient.')
   const before = await page.request.get('/api/settings')
   const body = await before.json()
