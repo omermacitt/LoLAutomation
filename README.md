@@ -24,10 +24,11 @@ are planned for future updates.
 
 ## Current application
 
-The project has a modern **React + TypeScript** development interface and a
-**PyQt6** desktop client. Both use the same layered Python/FastAPI backend.
-The planned Tauri desktop shell is not implemented yet; the React interface
-currently runs in a browser during development.
+The modern **React + TypeScript** interface now runs in a **Tauri 2 Windows
+desktop shell**, with a bundled Python/FastAPI backend. A versioned NSIS installer
+can be built locally. The first beta still needs clean-machine, old-version
+migration and real League acceptance before public release. The **PyQt6** entry
+remains available as a development fallback.
 
 ## Features
 
@@ -103,8 +104,7 @@ selections with defaults.
 
 This starts the backend and opens the desktop configuration window directly.
 Use this entry point instead of a separate `main.py` process for the desktop
-client. System tray and native update prompts belong to this client; the React
-interface does not yet have a native desktop shell.
+client. System tray and legacy update prompts belong to this fallback client.
 
 ## Using RunePilot
 
@@ -198,16 +198,44 @@ running backend/League Client and do not modify the real profile.
 Windows, plus frontend unit tests and the production build on Linux. Playwright
 browser tests are run separately from that workflow.
 
-## Build the desktop executable
+## Build the Windows desktop installer
+
+Windows x64 build prerequisites: Python 3.13.3, Node 22.15.1, Rust 1.99.1,
+Visual Studio 2022 C++ Build Tools and WebView2. Install the pinned dependencies:
+
+```powershell
+.\.venv\Scripts\python.exe -m pip install -r requirements-build-windows.lock
+.\.venv\Scripts\python.exe -m pip install --no-deps --no-build-isolation -e .
+npm.cmd ci --prefix frontend
+.\tools\build_desktop.ps1
+```
+
+Output: `dist/desktop/1.0.0-beta.1/RunePilotSetup-1.0.0-beta.1-x64.exe`,
+`SHA256SUMS.txt` and `build-manifest.json`. End users need the Setup file;
+Python, Node and this repository are bundled or unnecessary. WebView2 is installed
+by the bootstrapper if missing, which requires Internet access.
+
+The native host owns a private backend process and port, keeps its access key out
+of the webview and stops the process on exit. Window close waits for settings and
+confirmed Stop; minimize keeps the application running. Native restart retains
+drafts and requires an explicit Start. Sign in to Riot and open League manually.
+
+The version source is `src/rune_pilot/shared/app_meta.py`. After editing it, run
+`python tools/release_version.py --sync`; the build rejects mismatched manifests.
+[Windows beta workflow](.github/workflows/release.yml) checks tags, tests and builds
+the installer, then creates a **draft** release. It never publishes on a main push.
+This beta has no Authenticode signature or enabled in-app updater. Older v0.0.2
+users need a manual migration check; in-place upgrade compatibility is unverified.
+Clean Windows installation, v0.0.2 migration and real League acceptance remain
+pending. Keep this build as a preview until those checks are complete.
+
+To build the retained Qt fallback instead:
 
 ```powershell
 .\.venv\Scripts\python.exe -m PyInstaller --clean -y run_app.spec
 ```
 
-The output is `dist/RunePilot/RunePilot.exe`. This packages the PyQt6 desktop
-client, not the React development interface. The repository includes the
-[PyInstaller specification](run_app.spec); Tauri packaging and an installer build
-pipeline remain future work.
+The fallback output is `dist/RunePilot/RunePilot.exe` from [run_app.spec](run_app.spec).
 
 ## Architecture and development notes
 

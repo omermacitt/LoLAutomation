@@ -2,7 +2,8 @@
 
 React + TypeScript + Vite ile masaüstü arayüzünün geliştirme sürümü. Şampiyon/ban
 seçimi, seçim sırası, büyüler, rün editörü, kostüm galerisi, kalıcı kayıt ve otomasyon kontrolleri hazır.
-Nihai masaüstü kabuğu Tauri olacak; henüz Tauri paketi yok.
+Tauri 2 masaüstü kabuğu ve Windows beta Setup üretimi eklendi; temiz makine ve
+gerçek League kabulü bekliyor. [Derleme ve dağıtım](../README.md#build-the-windows-desktop-installer).
 
 ## Çalıştırma
 
@@ -33,13 +34,14 @@ aktarır: sağlık/katalog/ayar okuma, kostüm listesi/görsel okuma, rün katal
 ayar kaydı, başlat/durdur ve çalışan ayarı güncelleme. Yazmalarda bellekte
 tutulan geliştirme oturum anahtarı gerekir;
 izinsiz origin, eksik anahtar ve diğer API yolları reddedilir. Backend'e genel
-CORS izni eklenmedi. Bu geliştirme sınırı, gelecekteki Tauri servis kimlik
-doğrulamasının veya işletim sistemi erişim kontrolünün yerine geçmez.
+CORS izni eklenmedi. Tauri paketi Vite proxy'si kullanmaz; Rust özel backend
+anahtarını tutar, izinli JSON isteklerini IPC ile, görselleri yerel protokolle aktarır.
 
 Gerçek profili aynı anda yalnızca bir arayüzden düzenle. Qt başlangıç yolu
 korunuyor. Aynı backend'deki güncel Qt/React istemcileri ETag ile eski kayıtların
 üstüne yazılmasını engeller; başka backend süreçleri arasında dosya kilidi veya
-tek uygulama örneği garantisi bu adımın parçası değildir.
+tek uygulama örneği garantisi yoktur. Yeni Tauri kabuğu kendi ikinci örneğini engeller;
+Qt veya ayrı geliştirme backend'lerini aynı profile paralel açma.
 
 ## Kullanılabilen akış
 
