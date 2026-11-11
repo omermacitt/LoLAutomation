@@ -119,6 +119,7 @@ test('save failure retains selections and blocks controlled exit until retry suc
 
 test('flushes before Start, live updates through update-only endpoint and does not restart after Stop', async ({ page }) => {
   const backend = await mockBackend(page, true)
+  backend.saved.role_rune_selection = { TOP: { '266': 1 }, MIDDLE: { '266': 0 } }
   await page.goto('/')
   await page.getByRole('combobox', { name: 'Oyun modu', exact: true }).selectOption('Ranked Flex')
   await page.getByRole('button', { name: 'Otomasyonu başlat', exact: true }).click()
@@ -126,9 +127,11 @@ test('flushes before Start, live updates through update-only endpoint and does n
   expect(backend.order.slice(0, 2)).toEqual(['save', 'start'])
   expect(backend.starts[0].queue_id).toBe(440)
   expect(backend.starts[0].custom_runes['266']).toBeDefined()
+  expect(backend.starts[0].role_rune_selection).toEqual(backend.saved.role_rune_selection)
   await page.getByRole('button', { name: 'Ahri seç', exact: true }).click()
   await expect.poll(() => backend.updates.length).toBe(1)
   expect(backend.updates[0].role_champions.TOP[0]).toBe(103)
+  expect(backend.updates[0].role_rune_selection).toEqual(backend.saved.role_rune_selection)
   await page.getByRole('button', { name: 'Durdur', exact: true }).click()
   await expect(page.getByRole('button', { name: 'Otomasyonu başlat', exact: true })).toBeEnabled()
   await page.getByRole('button', { name: 'Aatrox seç', exact: true }).click()

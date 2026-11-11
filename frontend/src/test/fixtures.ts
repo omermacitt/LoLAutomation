@@ -22,7 +22,7 @@ export const settings: Settings = {
   queue_name: 'Ranked Solo/Duo', primary_role_name: 'Top', secondary_role_name: 'Mid',
   role_champions_ui: { TOP: [266, 86, 122], MIDDLE: [103, null, null] },
   role_bans_ui: { TOP: 84 }, custom_runes: {}, rune_selection: {}, custom_skins: {},
-  custom_summoner_spells: {},
+  custom_summoner_spells: {}, role_rune_selection: {},
 }
 
 export function deferred<T>() {

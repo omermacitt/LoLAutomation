@@ -16,6 +16,8 @@ import { roles, resolveChampion, siblingPickIndex } from './features/champions/s
 import { useChampionWorkspace } from './features/champions/useChampionWorkspace'
 import { useGridPageSize } from './features/champions/useGridPageSize'
 import { RuneWorkspace } from './features/runes/RuneWorkspace'
+import type { RuneRequest } from './features/runes/RuneWorkspace'
+import { RuneAlert } from './components/RuneAlert'
 import { SkinGallery } from './features/skins/SkinGallery'
 import type { SkinRequest } from './features/skins/SkinGallery'
 import './styles.css'
@@ -33,7 +35,7 @@ export default function App({ api = apiClient }: { api?: PilotApi }) {
   const [helpOpen, setHelpOpen] = useState(false)
   const [section, setSection] = useState<'champions' | 'runes' | 'skins'>('champions')
   const [runesOpened, setRunesOpened] = useState(false)
-  const [runeRequest, setRuneRequest] = useState<{ id?: number; sequence: number }>({ sequence: 0 })
+  const [runeRequest, setRuneRequest] = useState<RuneRequest>({ role: 'TOP', sequence: 0 })
   const [skinsOpened, setSkinsOpened] = useState(false)
   const [skinRequest, setSkinRequest] = useState<SkinRequest>({ role: 'TOP', sequence: 0 })
   const selectedRole = roles.find((item) => item.key === role)!
@@ -53,7 +55,7 @@ export default function App({ api = apiClient }: { api?: PilotApi }) {
   const hasCatalog = Boolean(catalog.data)
   const openRunes = (id?: number) => {
     setRunesOpened(true)
-    setRuneRequest((previous) => ({ id, sequence: previous.sequence + 1 }))
+    setRuneRequest((previous) => ({ id, role, sequence: previous.sequence + 1 }))
     setSection('runes')
   }
   const openSkins = (id?: number) => {
@@ -64,6 +66,7 @@ export default function App({ api = apiClient }: { api?: PilotApi }) {
 
   return <>
     <SelectionAlert health={workspace.automation.health} onStop={() => { void workspace.stop() }} stopping={workspace.closing || workspace.automation.busy === 'stopping'} />
+    <RuneAlert health={workspace.automation.health} />
     <div className="app-shell">
     <a className="skip-link" href="#main">İçeriğe geç</a>
     <aside className="sidebar">

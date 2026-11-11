@@ -1,5 +1,7 @@
 import { runePageSchema } from '../../api/contracts'
 import type { RuneEditorCatalog, RunePage, RuneStyle, Settings } from '../../api/contracts'
+import { roles } from '../champions/selection'
+import type { RoleKey } from '../champions/selection'
 
 export type PresetSlot = 1 | 2 | 3
 export const presetSlots: PresetSlot[] = [1, 2, 3]
@@ -12,9 +14,38 @@ export function hasPreset(config: Settings | undefined, championId: number, slot
   const pages = config?.custom_runes[String(championId)]
   return Boolean(pages && typeof pages === 'object' && String(slot) in pages)
 }
-export function selectedPreset(config: Settings | undefined, championId: number): number {
-  const selected = config?.rune_selection[String(championId)]
-  return presetSlots.includes(selected as PresetSlot) && hasPreset(config, championId, selected as PresetSlot) ? selected! : 0
+export function runeChoice(config: Settings | undefined, championId: number, role: RoleKey, catalog?: RuneEditorCatalog) {
+  const entries = config?.role_rune_selection?.[role]
+  const explicit = Boolean(entries && Object.hasOwn(entries, String(championId)))
+  const selected = explicit ? entries![String(championId)] : config?.rune_selection[String(championId)] ?? 0
+  const page = presetSlots.includes(selected as PresetSlot) ? preset(config, championId, selected as PresetSlot) : undefined
+  const usable = selected === 0 || Boolean(page && (!catalog || pageIssues(page, catalog).length === 0))
+  return { slot: usable ? selected : 0, explicit, unavailable: !usable }
+}
+export function selectedPreset(config: Settings | undefined, championId: number, role: RoleKey = 'TOP'): number {
+  return runeChoice(config, championId, role).slot
+}
+// Keep an unreadable saved page open for repair, while effective selection uses its fallback.
+export function editorPreset(config: Settings | undefined, championId: number, role: RoleKey): 0 | PresetSlot {
+  const entries = config?.role_rune_selection?.[role]
+  const selected = entries && Object.hasOwn(entries, String(championId)) ? entries[String(championId)] : config?.rune_selection[String(championId)]
+  return presetSlots.includes(selected as PresetSlot) && hasPreset(config, championId, selected as PresetSlot) ? selected as PresetSlot : 0
+}
+export function assignPreset(config: Settings, championId: number, slot: 0 | PresetSlot | null, role: RoleKey): Settings {
+  const next = structuredClone(config)
+  const entries = { ...next.role_rune_selection?.[role] }
+  if (slot === null) delete entries[String(championId)]
+  else entries[String(championId)] = slot
+  next.role_rune_selection = { ...next.role_rune_selection, [role]: entries }
+  if (!Object.keys(entries).length) delete next.role_rune_selection[role]
+  return next
+}
+export function affectedRoles(config: Settings | undefined, championId: number, slot: PresetSlot) {
+  return roles.filter((role) => {
+    const entries = config?.role_rune_selection?.[role.key]
+    const assigned = entries && Object.hasOwn(entries, String(championId)) ? entries[String(championId)] : config?.rune_selection[String(championId)]
+    return assigned === slot
+  }).map((role) => role.name)
 }
 export function defaultPage(catalog: RuneEditorCatalog, name: string): RunePage {
   const primary = catalog.styles[0]
@@ -57,9 +88,9 @@ export function chooseSecondary(page: RunePage, style: RuneStyle, id: number): R
   else { selected.shift(); selected.push(id) }
   return { ...page, selectedPerkIds: [...page.selectedPerkIds.slice(0, 4), ...selected, ...page.selectedPerkIds.slice(6)] }
 }
-export function withPreset(config: Settings, championId: number, slot: PresetSlot, page: RunePage): Settings {
+export function withPreset(config: Settings, championId: number, slot: PresetSlot, page: RunePage, role: RoleKey = 'TOP'): Settings {
   const id = String(championId)
-  return { ...config, custom_runes: { ...config.custom_runes, [id]: { ...(config.custom_runes[id] as object ?? {}), [String(slot)]: structuredClone(page) } }, rune_selection: { ...config.rune_selection, [id]: slot } }
+  return assignPreset({ ...config, custom_runes: { ...config.custom_runes, [id]: { ...(config.custom_runes[id] as object ?? {}), [String(slot)]: structuredClone(page) } } }, championId, slot, role)
 }
 export function withoutPreset(config: Settings, championId: number, slot: PresetSlot): Settings {
   const next = structuredClone(config)
@@ -67,10 +98,11 @@ export function withoutPreset(config: Settings, championId: number, slot: Preset
   const pages = next.custom_runes[id] as Record<string, unknown> | undefined
   if (pages) { delete pages[String(slot)]; if (!Object.keys(pages).length) delete next.custom_runes[id] }
   if (next.rune_selection[id] === slot) delete next.rune_selection[id]
+  for (const entries of Object.values(next.role_rune_selection ?? {})) if (entries[id] === slot) entries[id] = 0
   return next
 }
 
-export function restorePreset(config: Settings, saved: Settings, championId: number, slot: PresetSlot): Settings {
+export function restorePreset(config: Settings, saved: Settings, championId: number, slot: PresetSlot, role: RoleKey = 'TOP', preserveAssignments: ReadonlySet<RoleKey> = new Set()): Settings {
   const next = structuredClone(config)
   const id = String(championId)
   const baseline = (saved.custom_runes[id] as Record<string, unknown> | undefined)?.[String(slot)]
@@ -83,6 +115,20 @@ export function restorePreset(config: Settings, saved: Settings, championId: num
   if (config.rune_selection[id] === slot || (changed && saved.rune_selection[id] === slot)) {
     if (saved.rune_selection[id] === undefined) delete next.rune_selection[id]
     else next.rune_selection[id] = saved.rune_selection[id]
+  }
+  for (const item of roles) {
+    if (preserveAssignments.has(item.key)) continue
+    const current = config.role_rune_selection?.[item.key]?.[id]
+    const baselineChoice = saved.role_rune_selection?.[item.key]?.[id]
+    const ownSave = item.key === role && current === slot
+    const deletedReference = changed && !hasPreset(config, championId, slot) && baseline !== undefined && current === 0 && baselineChoice === slot
+    if (ownSave || deletedReference) {
+      const entries = { ...next.role_rune_selection?.[item.key] }
+      if (baselineChoice === undefined) delete entries[id]
+      else entries[id] = baselineChoice
+      next.role_rune_selection = { ...next.role_rune_selection, [item.key]: entries }
+      if (!Object.keys(entries).length) delete next.role_rune_selection[item.key]
+    }
   }
   return next
 }

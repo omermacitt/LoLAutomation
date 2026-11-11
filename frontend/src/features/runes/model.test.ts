@@ -1,9 +1,42 @@
 import { describe, expect, it } from 'vitest'
 import { settings } from '../../test/fixtures'
 import { runeCatalog, runePage } from '../../test/runeFixtures'
-import { changePrimary, chooseSecondary, pageIssues, preset, restorePreset, selectedPreset, withPreset, withoutPreset } from './model'
+import { affectedRoles, assignPreset, changePrimary, chooseSecondary, pageIssues, preset, restorePreset, runeChoice, selectedPreset, withPreset, withoutPreset } from './model'
 
 describe('rune page rules and shared champion presets', () => {
+  it('distinguishes explicit recommendation, missing assignment and missing preset', () => {
+    const config = { ...structuredClone(settings), custom_runes: { '106': { '1': runePage, '2': runePage } }, rune_selection: { '106': 1 },
+      role_rune_selection: { TOP: { '106': 0 }, MIDDLE: { '106': 2 }, JUNGLE: { '106': 3 } } }
+    expect(selectedPreset(config, 106, 'TOP')).toBe(0)
+    expect(selectedPreset(config, 106, 'MIDDLE')).toBe(2)
+    expect(selectedPreset(config, 106, 'BOTTOM')).toBe(1)
+    expect(runeChoice(config, 106, 'JUNGLE')).toEqual({ slot: 0, explicit: true, unavailable: true })
+    expect(selectedPreset(assignPreset(config, 106, null, 'TOP'), 106, 'TOP')).toBe(1)
+    expect(affectedRoles(config, 106, 1)).toEqual(['Alt koridor', 'Destek'])
+  })
+  it('saves shared content but assigns only its target role and deletion prevents legacy revival', () => {
+    const config = { ...structuredClone(settings), custom_runes: { '106': { '1': runePage, '2': runePage } }, rune_selection: { '106': 1 },
+      role_rune_selection: { TOP: { '106': 1 }, MIDDLE: { '106': 2 } } }
+    const next = withPreset(config, 106, 2, { ...runePage, name: 'Shared' }, 'TOP')
+    expect(next.role_rune_selection).toEqual({ TOP: { '106': 2 }, MIDDLE: { '106': 2 } })
+    expect(next.rune_selection).toEqual(config.rune_selection)
+    const deleted = withoutPreset(next, 106, 2)
+    expect(deleted.role_rune_selection).toEqual({ TOP: { '106': 0 }, MIDDLE: { '106': 0 } })
+    expect(selectedPreset(deleted, 106, 'TOP')).toBe(0)
+    expect(restorePreset(deleted, next, 106, 2)).toEqual(next)
+  })
+  it('undo preserves missing versus zero and another role changed after a failed save', () => {
+    for (const original of [undefined, 0] as const) {
+      const saved = structuredClone(settings)
+      if (original !== undefined) saved.role_rune_selection = { TOP: { '106': original } }
+      const failed = withPreset(saved, 106, 1, runePage, 'TOP')
+      const later = assignPreset(failed, 106, 2, 'MIDDLE')
+      const restored = restorePreset(later, saved, 106, 1, 'TOP')
+      expect(restored.role_rune_selection.TOP?.['106']).toBe(original)
+      expect(restored.role_rune_selection.MIDDLE['106']).toBe(2)
+      expect(restored.custom_runes['106']).toBeUndefined()
+    }
+  })
   it('restores only a failed preset context, leaving another pending preset and selection intact', () => {
     const saved = withPreset(structuredClone(settings), 266, 1, runePage)
     const pending = withPreset(saved, 266, 2, { ...runePage, name: 'Pending' })

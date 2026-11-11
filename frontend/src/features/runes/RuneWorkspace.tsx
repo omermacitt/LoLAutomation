@@ -3,20 +3,24 @@ import { Check, Copy, LoaderCircle, RefreshCw, Save, Sparkles, Trash2, Undo2 } f
 import type { PilotApi, RuneEditorCatalog, RunePage, RuneRecommendation } from '../../api/contracts'
 import type { useChampionWorkspace } from '../champions/useChampionWorkspace'
 import { ChampionArtwork } from '../../components/ChampionArtwork'
-import { defaultPage, hasPreset, pageIssues, preset, presetSlots, selectedPreset } from './model'
+import { affectedRoles, defaultPage, editorPreset, hasPreset, pageIssues, preset, presetSlots, runeChoice } from './model'
+import { roles } from '../champions/selection'
+import type { RoleKey } from '../champions/selection'
 import type { PresetSlot } from './model'
 import { RuneTree } from './RuneTree'
 import { SectionIcon } from '../../components/SectionIcon'
 import './runes.css'
 
 type Resource<T> = { data?: T; loading: boolean; error?: string }
-type Props = { workspace: ReturnType<typeof useChampionWorkspace>; api: PilotApi; request: { id?: number; sequence: number } }
+export type RuneRequest = { id?: number; role: RoleKey; sequence: number }
+type Props = { workspace: ReturnType<typeof useChampionWorkspace>; api: PilotApi; request: RuneRequest }
 const errorMessage = (error: unknown) => error instanceof Error ? error.message : 'Rün işlemi tamamlanamadı.'
 
 export function RuneWorkspace({ workspace: w, api, request }: Props) {
   const [catalog, setCatalog] = useState<Resource<RuneEditorCatalog>>({ loading: true })
   const [recommendation, setRecommendation] = useState<Resource<RuneRecommendation>>({ loading: true })
   const [championId, setChampionId] = useState<number | undefined>(request.id)
+  const [runeRole, setRuneRole] = useState<RoleKey>(request.role)
   const [slot, setSlot] = useState<0 | PresetSlot>(0)
   const [copySlot, setCopySlot] = useState<PresetSlot>(1)
   const [drafts, setDrafts] = useState<Record<string, RunePage>>({})
@@ -26,7 +30,9 @@ export function RuneWorkspace({ workspace: w, api, request }: Props) {
   const champions = w.catalog.data?.all_champions ?? []
   const champion = champions.find((item) => item.id === championId)
   const stored = w.saveState.saved
-  const active = championId === undefined ? 0 : selectedPreset(stored, championId)
+  const choice = championId === undefined ? undefined : runeChoice(stored, championId, runeRole, catalog.data)
+  const active = choice?.slot ?? 0
+  const affected = championId !== undefined && slot !== 0 ? affectedRoles(stored, championId, slot) : []
   const key = `${championId}:${slot}`
   const savedPage = championId !== undefined && slot !== 0 ? preset(stored, championId, slot) : undefined
   const hasUnreadablePreset = championId !== undefined && slot !== 0 && hasPreset(stored, championId, slot) && !savedPage
@@ -42,7 +48,8 @@ export function RuneWorkspace({ workspace: w, api, request }: Props) {
     requestSequence.current = request.sequence
     const id = champions.some((item) => item.id === request.id) ? request.id : champions[0].id
     setChampionId(id)
-    setSlot(selectedPreset(w.saveState.saved, id! ) as 0 | PresetSlot)
+    setRuneRole(request.role)
+    setSlot(editorPreset(w.saveState.saved, id!, request.role))
   }, [request, champions, w.saveState.saved])
 
   useEffect(() => {
@@ -114,9 +121,13 @@ export function RuneWorkspace({ workspace: w, api, request }: Props) {
   return <section className="rune-workspace" aria-label="Rün çalışma alanı">
     <div className="page-heading"><div><p className="eyebrow">OYUN TARZINA YER AÇ.</p><h1>Her seçimde bir fark<span>.</span></h1><p className="page-heading__description">Rünlerini şekillendir. Her şampiyon için üç farklı plan oluştur.</p></div><button className="button button--secondary" disabled={loading || w.runeBusy} onClick={() => setAttempt((value) => value + 1)}><RefreshCw size={14} /><span>Rünleri yenile</span></button></div>
     <div className="rune-controls">
-    <div className="rune-context">{champion && <ChampionArtwork id={champion.id} name={champion.name} small retryKey={w.portraitRetryKey} />}<label><span>Şampiyon</span><select aria-label="Rün şampiyonu" title="Presetler bu şampiyon için tüm rollerde ortaktır." value={championId ?? ''} disabled={w.runeBusy || !champions.length} onChange={(event) => { const id = Number(event.target.value); setChampionId(id); setSlot(selectedPreset(stored, id) as 0 | PresetSlot); setOperationError(undefined) }}><option value="" disabled>Şampiyon seç</option>{champions.map((item) => <option value={item.id} key={item.id}>{item.name}</option>)}</select></label><span className="rune-active-label"><Check size={13} />{active === 0 ? 'Önerilen' : `Preset ${active}`}</span></div>
+    <div className="rune-context">{champion && <ChampionArtwork id={champion.id} name={champion.name} small retryKey={w.portraitRetryKey} />}
+      <label><span>Rol</span><select aria-label="Rün rolü" value={runeRole} onChange={(event) => { const nextRole = event.target.value as RoleKey; setRuneRole(nextRole); setSlot(championId === undefined ? 0 : editorPreset(stored, championId, nextRole)); setOperationError(undefined) }}>{roles.map((item) => <option key={item.key} value={item.key}>{item.name}</option>)}</select></label>
+      <label><span>Şampiyon</span><select aria-label="Rün şampiyonu" title="Preset içerikleri ortak, aktif seçim role özeldir." value={championId ?? ''} disabled={!champions.length} onChange={(event) => { const id = Number(event.target.value); setChampionId(id); setSlot(editorPreset(stored, id, runeRole)); setOperationError(undefined) }}><option value="" disabled>Şampiyon seç</option>{champions.map((item) => <option value={item.id} key={item.id}>{item.name}</option>)}</select></label>
+      <span className="rune-active-label" aria-label="Aktif rün ataması"><Check size={13} /><span>{roles.find((item) => item.key === runeRole)?.name} · {champion?.name ?? 'Şampiyon seç'} · {choice?.explicit ? '' : 'Varsayılandan: '}{active === 0 ? 'Önerilen' : `Preset ${active}`}</span></span></div>
     <nav className="rune-preset-tabs" aria-label="Rün presetleri">{([0, ...presetSlots] as const).map((value) => <button key={value} aria-label={value === 0 ? 'Önerilen rünler' : `Rün Preset ${value}`} aria-pressed={slot === value} className={slot === value ? 'rune-preset-tab rune-preset-tab--active' : 'rune-preset-tab'} disabled={w.runeBusy} onClick={() => { setSlot(value); setOperationError(undefined) }}>{value === 0 ? <Sparkles size={15} /> : <SectionIcon section="runes" size={16} />}<span>{value === 0 ? 'Önerilen' : `Preset ${value}`}<small>{value === 0 ? 'Veri paketinden' : drafts[`${championId}:${value}`] ? 'Kaydedilmemiş' : championId !== undefined && hasPreset(stored, championId, value) ? 'Kaydedilmiş' : 'Yeni sayfa'}</small></span>{active === value && <Check size={12} />}</button>)}</nav>
     </div>
+    {choice?.unavailable && <p className="error-banner" role="alert">Atanan preset eksik veya okunamıyor. Kullanılabilir öneri varsa uygulanacak; başka bir özel presete geçilmeyecek.</p>}
     {(catalog.error || operationError || (slot === 0 && recommendation.error)) && <div className="error-banner" role="alert"><p>{operationError ?? catalog.error ?? recommendation.error}</p></div>}
     {loading && !catalog.data ? <div className="rune-loading" role="status"><LoaderCircle className="spin" size={25} /><p>Rün ağaçları yükleniyor…</p></div>
       : !champion ? <div className="empty-state"><SectionIcon section="runes" size={30} /><h3>Önce League istemcisine bağlan</h3><p>Şampiyon listesi hazır olduğunda rünlerini düzenleyebilirsin.</p></div>
@@ -128,9 +139,10 @@ export function RuneWorkspace({ workspace: w, api, request }: Props) {
               <RuneTree page={page} catalog={catalog.data} disabled={disabled} readOnly={slot === 0} onChange={changeDraft} retryKey={attempt} />
             </> : null}
     <div className="rune-editor-actions">
-      {slot === 0 ? <><div className="rune-copy-actions"><select aria-label="Önerinin kopyalanacağı preset" value={copySlot} disabled={disabled || !page} onChange={(event) => setCopySlot(Number(event.target.value) as PresetSlot)}>{presetSlots.map((value) => <option key={value} value={value}>Preset {value}</option>)}</select><button className="button button--secondary" disabled={disabled || !page || issues.length > 0} onClick={copyRecommendation}><Copy size={14} /><span>Düzenlemek için kopyala</span></button></div><button className="button button--primary" disabled={disabled || !page || active === 0 || issues.length > 0} onClick={() => { void run(() => w.selectRunePreset(championId!, 0)) }}><Sparkles size={14} /><span>Önerileni kullan</span></button></>
-        : <><button className="button button--danger" disabled={disabled || championId === undefined || !hasPreset(stored, championId, slot)} onClick={() => { void run(() => w.deleteRunePreset(championId!, slot), true) }}><Trash2 size={14} /><span>Preseti sil</span></button><div className="rune-editor-actions__right"><button className="button button--secondary" disabled={disabled || !drafts[key]} onClick={() => { void run(() => w.discardRunePreset(championId!, slot), true) }}><Undo2 size={14} /><span>Düzenlemeyi geri al</span></button><button className="button button--secondary" disabled={disabled || !savedPage || active === slot || Boolean(drafts[key]) || !catalog.data || pageIssues(savedPage, catalog.data).length > 0} onClick={() => { void run(() => w.selectRunePreset(championId!, slot)) }}>Bu preseti kullan</button><button className="button button--primary" disabled={disabled || !page || unreadable || issues.length > 0} onClick={() => { void run(() => w.saveRunePreset(championId!, slot, page!), true) }}><span className="button-icon" aria-hidden="true">{w.runeBusy ? <LoaderCircle className="spin" size={14} /> : <Save size={14} />}</span><span>Preseti kaydet</span></button></div></>}
+      <button className="button button--secondary rune-default-button" disabled={disabled || !choice?.explicit} onClick={() => { void run(() => w.selectRunePreset(championId!, null, runeRole)) }}>Varsayılanı kullan</button>
+      {slot === 0 ? <><div className="rune-copy-actions"><select aria-label="Önerinin kopyalanacağı preset" value={copySlot} disabled={disabled || !page} onChange={(event) => setCopySlot(Number(event.target.value) as PresetSlot)}>{presetSlots.map((value) => <option key={value} value={value}>Preset {value}</option>)}</select><button className="button button--secondary" disabled={disabled || !page || issues.length > 0} onClick={copyRecommendation}><Copy size={14} /><span>Düzenlemek için kopyala</span></button></div><button className="button button--primary" disabled={disabled || !page || (active === 0 && choice?.explicit && !choice.unavailable) || issues.length > 0} onClick={() => { void run(() => w.selectRunePreset(championId!, 0, runeRole)) }}><Sparkles size={14} /><span>Önerileni kullan</span></button></>
+        : <><button className="button button--danger" disabled={disabled || championId === undefined || !hasPreset(stored, championId, slot)} onClick={() => { void run(() => w.deleteRunePreset(championId!, slot), true) }}><Trash2 size={14} /><span>Preseti sil</span></button><div className="rune-editor-actions__right"><button className="button button--secondary" disabled={disabled || (!drafts[key] && !w.canDiscardRunePreset(championId!, slot))} onClick={() => { void run(() => w.discardRunePreset(championId!, slot, runeRole), true) }}><Undo2 size={14} /><span>Düzenlemeyi geri al</span></button><button className="button button--secondary" disabled={disabled || !savedPage || (active === slot && choice?.explicit) || Boolean(drafts[key]) || !catalog.data || pageIssues(savedPage, catalog.data).length > 0} onClick={() => { void run(() => w.selectRunePreset(championId!, slot, runeRole)) }}>Bu preseti kullan</button><button className="button button--primary" disabled={disabled || !page || unreadable || issues.length > 0} onClick={() => { void run(() => w.saveRunePreset(championId!, slot, page!, runeRole), true) }}><span className="button-icon" aria-hidden="true">{w.runeBusy ? <LoaderCircle className="spin" size={14} /> : <Save size={14} />}</span><span>Preseti kaydet</span></button></div></>}
     </div>
-    <p className="rune-save-note">Kaydettiğin preset bu şampiyon için seçilir. Oyuna uygulama, otomasyon açıkken şampiyon seçimi sırasında yapılır.</p>
+    <p className="rune-save-note">Kaydet: yalnız {roles.find((item) => item.key === runeRole)?.name}. İçerik ve silme tüm roller için ortak.{slot !== 0 && ` Etkilenen roller: ${affected.join(', ') || 'Henüz yok'}.`}</p>
   </section>
 }

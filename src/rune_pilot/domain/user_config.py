@@ -15,7 +15,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from rune_pilot.domain.champion_service import (
     normalize_champion_id,
@@ -23,6 +23,7 @@ from rune_pilot.domain.champion_service import (
     unique_champion_slots,
 )
 from rune_pilot.domain.constants import ROLE_KEYS
+from rune_pilot.domain.rune_selection import clean_role_rune_selection
 
 RUNE_SLOTS: tuple[str, ...] = ("1", "2", "3")
 
@@ -37,6 +38,7 @@ OWNED_KEYS: tuple[str, ...] = (
     "role_bans_ui",
     "custom_runes",
     "rune_selection",
+    "role_rune_selection",
     "custom_skins",
 )
 
@@ -221,6 +223,13 @@ class UserConfig(BaseModel):
     custom_runes: dict[str, dict[str, dict]] = Field(default_factory=dict)
     # champId(str) -> slot(1|2|3); absent means "use the recommended page"
     rune_selection: dict[str, int] = Field(default_factory=dict)
+    role_rune_selection: dict[str, dict[str, int]] = Field(default_factory=dict)
+
+    @field_validator("role_rune_selection", mode="before")
+    @classmethod
+    def normalize_role_assignments(cls, value):
+        return clean_role_rune_selection(value)
+
     # role -> champId(str) -> skinId
     custom_skins: dict[str, dict[str, int]] = Field(default_factory=dict)
     # role -> champId(str) -> {"spell1Id", "spell2Id"}
@@ -268,6 +277,7 @@ class UserConfig(BaseModel):
             role_bans_ui=_clean_role_bans(data.get("role_bans_ui")),
             custom_runes=custom_runes,
             rune_selection=rune_selection,
+            role_rune_selection=clean_role_rune_selection(data.get("role_rune_selection")),
             custom_skins=_clean_custom_skins(data.get("custom_skins")),
             custom_summoner_spells=custom_summoner_spells,
         )

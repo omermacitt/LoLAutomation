@@ -101,8 +101,8 @@ kadar korunur. Şampiyon kilitlenince, oturum bitince veya otomasyon durunca tem
 
 Manuel/yedek şampiyon için o şampiyonun kayıtlı rünü ve rol/kostüm/büyü ayarları
 varsa uygulanır. İlk tercih şampiyonundan türetilmiş büyüler başka şampiyona
-aktarılmaz; özel büyü kaydı yoksa mevcut istemci büyüleri korunur. Rün preset
-seçimi şimdilik şampiyon bazında ortaktır; rol bazlı preset seçimi ayrı geliştirmedir.
+aktarılmaz; özel büyü kaydı yoksa mevcut istemci büyüleri korunur. Rün seçimi
+gerçek atanan rol ve seçilen şampiyona göre çözülür; başka rolün ataması taşınmaz.
 
 ## Rün editörü
 
@@ -113,8 +113,23 @@ Nitelik parçalarının farklı satırlardaki izinli tekrarları korunur.
 
 Her şampiyon için roller arasında ortak üç preset vardır. **Preseti kaydet** önce
 `POST /runes/validate` ile doğrular, sonra mevcut sıralı `/settings` kaydına katılır;
-başarılı kayıt o preseti seçer. Silme yalnızca hedef preseti kaldırır; aktif preset
-silinirse önerilen seçime dönülür. Diğer şampiyon, rol, büyü ve kostüm alanları korunur.
+başarılı kayıt o preseti yalnız ekranda seçili role atar. Örneğin Volibear üst
+koridorda Preset 1, orta koridorda Preset 2 kullanabilir. İçerik ortak olduğu için
+bir preset'i düzenlemek onu kullanan diğer rolleri de etkiler; etkilenen roller
+ekranda gösterilir. Silme o sayfayı kaldırır ve onu kullanan rol atamalarını açıkça
+önerilene döndürür. Diğer preset, şampiyon, büyü ve kostüm alanları korunur.
+
+Eski şampiyon bazlı seçim varsayılan olarak korunur. Rol ataması yoksa bu seçim
+kullanılır. **Önerileni kullan** yalnız o role önerileni atar; **Varsayılanı kullan**
+rol atamasını kaldırıp eski şampiyon seçimini devreye alır. Açık öneri seçimi eski
+bir preset'e dönüşmez. Rün ekranı rol/şampiyon ve aktif seçimin kaynağını gösterir.
+
+Autofill, yedek ve manuel şampiyonda gerçek maç rolü esas alınır. Rol bilgisi yoksa
+eski şampiyon varsayılanı, o da yoksa veri paketindeki öneri kullanılır. Eksik veya
+geçersiz bir role atanan preset yerine doğrulanmış öneri denenir; kullanılabilir
+öneri veya katalog yoksa rün yazılmaz ve ayrı bir uyarı gösterilir. Bu uyarı manuel
+şampiyon seçimi bildirimini silmez. Otomasyon özel/önerilen sayfayı oyun yazmasından
+önce editörün güncel katalog kurallarıyla doğrular.
 
 Rün formu açıkça kaydedilir; ekran, şampiyon veya preset değiştirirken yerel taslak
 korunur. Kaydedilmemiş rün düzenlemeleri Başlat ve kontrollü çıkışı durdurur;

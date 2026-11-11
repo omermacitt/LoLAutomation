@@ -157,6 +157,7 @@ def register_routes(app: FastAPI) -> None:
             "running": running,
             "version": __version__,
             "selection": app.state.selection_feedback.read() if running else None,
+            "rune_notice": app.state.selection_feedback.read_rune() if running else None,
         }
 
     @app.get("/champions")

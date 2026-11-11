@@ -136,6 +136,23 @@ def test_window_waits_for_settings_and_applies_without_autosaving(window, wait_u
     assert not api.writes
 
 
+def test_qt_role_preset_default_label_and_payload_preserve_assignments(window, wait_until):
+    view, api = window
+    api.config.custom_runes = {"266": {"1": {"name": "Default"}, "2": {"name": "Top"}}}
+    api.config.rune_selection = {"266": 1}
+    api.config.role_rune_selection = {"TOP": {"266": 2}, "MIDDLE": {"266": 0}}
+    api.load_gate.set()
+    wait_until(lambda: view.settings.ready and not view.champions_query.busy)
+    row = view.role_tabs["TOP"].rows[0]
+    assert row.rune_select.itemText(0) == "Default: Preset 1"
+    assert row.rune_select.currentData() == 2
+    assert view._current_config().role_rune_selection == api.config.role_rune_selection
+    assert view._build_automation_payload()["role_rune_selection"] == api.config.role_rune_selection
+    row.rune_select.setCurrentIndex(0)
+    assert view._current_config().role_rune_selection["TOP"].get("266") is None
+    assert view._current_config().role_rune_selection["MIDDLE"]["266"] == 0
+
+
 def test_refresh_keeps_local_edits_and_close_waits_for_final_save(window, wait_until):
     view, api = window
     api.load_gate.set()

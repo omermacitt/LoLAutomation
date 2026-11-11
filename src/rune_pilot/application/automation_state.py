@@ -13,10 +13,10 @@ class AutomationSnapshot:
 @dataclass
 class AutomationProgress:
     revision: int = -1
-    rune_champion: int | None = None
+    rune_key: tuple[str, int] | None = None
     skin_key: tuple[int, int] | None = None
 
     def reset(self, revision: int) -> None:
         self.revision = revision
-        self.rune_champion = None
+        self.rune_key = None
         self.skin_key = None

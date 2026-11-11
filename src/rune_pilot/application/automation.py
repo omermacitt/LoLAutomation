@@ -6,6 +6,7 @@ from typing import Any
 
 from rune_pilot.application.automation_state import AutomationProgress, AutomationSnapshot
 from rune_pilot.application.champion_query import ChampionQuery
+from rune_pilot.application.game_query_service import QueryUnavailable
 from rune_pilot.application.lobby_service import LobbyService
 from rune_pilot.application.ports.league_client import LeagueClient
 from rune_pilot.application.rune_service import RuneService
@@ -17,7 +18,9 @@ from rune_pilot.domain.champ_select import (
     spell_fallbacks,
 )
 from rune_pilot.domain.champion_service import normalize_champion_id, normalize_spell_id
+from rune_pilot.domain.rune_editor import RunePage
 from rune_pilot.domain.rune_rules import build_rune_page_name
+from rune_pilot.domain.rune_selection import resolve_rune_choice
 from rune_pilot.shared.utils import safe_int_list
 
 
@@ -32,6 +35,7 @@ class AutomationRunner:
         sleep: Callable[[float], None] = time.sleep,
         now: Callable[[], float] = time.time,
         feedback: SelectionFeedback | None = None,
+        validate_rune: Callable[[dict], dict] | None = None,
     ):
         self._client = client
         self._champions = champions
@@ -40,6 +44,17 @@ class AutomationRunner:
         self._sleep = sleep
         self._now = now
         self.feedback = feedback if feedback is not None else SelectionFeedback()
+        self._validate_rune = validate_rune
+
+    def _validated_page(self, raw: dict) -> dict:
+        # Production injects catalog-backed validation. Standalone runners still reject malformed pages.
+        page = RunePage.model_validate(raw)
+        if page.primaryStyleId == page.subStyleId or any(
+            value <= 0 for value in page.selectedPerkIds
+        ):
+            raise ValueError("Invalid rune page")
+        normalized = page.model_dump()
+        return self._validate_rune(normalized) if self._validate_rune else normalized
 
     def apply_runes(
         self,
@@ -57,8 +72,10 @@ class AutomationRunner:
         """
         my_cell = session.get("localPlayerCellId")
         my_champ_id = 0
+        role = ""
         for p in session.get("myTeam", []):
             if p.get("cellId") == my_cell:
+                role = str(p.get("assignedPosition") or "").upper()
                 my_champ_id = p.get("championId", 0) or 0
                 if my_champ_id == 0:
                     my_champ_id = p.get("championPickIntent", 0) or 0
@@ -70,15 +87,9 @@ class AutomationRunner:
         try:
             champ_key = str(my_champ_id)
 
-            selection = 0
-            try:
-                selection_map = cfg.get("rune_selection") or {}
-                if isinstance(selection_map, dict):
-                    selection = int(selection_map.get(champ_key, 0) or 0)
-            except (TypeError, ValueError):
-                selection = 0
-            if selection not in (0, 1, 2, 3):
-                selection = 0
+            choice = resolve_rune_choice(cfg, role, my_champ_id)
+            selection = choice.slot
+            fallback = choice.missing
 
             page_data: dict | None = None
             used_custom = False
@@ -111,14 +122,19 @@ class AutomationRunner:
                         candidate = None
 
                     if candidate is None:
+                        fallback = True
                         print(
                             f"[RUNES] Invalid custom rune preset slot={selection} championId={my_champ_id}, falling back to recommended"
                         )
                     else:
-                        page_data = candidate
-                        used_custom = True
-                        used_slot = selection
+                        try:
+                            page_data = self._validated_page(candidate)
+                            used_custom = True
+                            used_slot = selection
+                        except ValueError:
+                            fallback = True
                 else:
+                    fallback = True
                     print(
                         f"[RUNES] Custom rune preset not found slot={selection} championId={my_champ_id}, falling back to recommended"
                     )
@@ -126,10 +142,28 @@ class AutomationRunner:
             if page_data is None:
                 recommended = self._runes.get_recommended_page_for_champion(my_champ_id)
                 if not recommended:
+                    self.feedback.publish_rune(
+                        (role, my_champ_id, "unavailable"), "rune_unavailable", role, my_champ_id
+                    )
                     print(f"[RUNES] No recommended runes found for championId={my_champ_id}")
                     return False
-                page_data = {**recommended}
+                try:
+                    page_data = self._validated_page(recommended)
+                except ValueError:
+                    self.feedback.publish_rune(
+                        (role, my_champ_id, "unavailable"), "rune_unavailable", role, my_champ_id
+                    )
+                    return False
                 used_custom = False
+
+            def applied():
+                if fallback:
+                    self.feedback.publish_rune(
+                        (role, my_champ_id, "fallback"), "rune_fallback", role, my_champ_id
+                    )
+                else:
+                    self.feedback.clear_rune()
+                return True
 
             champ_name = self._champions.get_champion_name_by_id(my_champ_id) or str(my_champ_id)
             if used_custom and used_slot is not None:
@@ -143,11 +177,17 @@ class AutomationRunner:
                 primary_style_id = int(page_data.get("primaryStyleId"))
                 sub_style_id = int(page_data.get("subStyleId"))
             except (TypeError, ValueError):
+                self.feedback.publish_rune(
+                    (role, my_champ_id, "unavailable"), "rune_unavailable", role, my_champ_id
+                )
                 print(f"[RUNES] Invalid style ids for championId={my_champ_id}: {page_data}")
                 return False
 
             selected = safe_int_list(page_data.get("selectedPerkIds"))
             if len(selected) != 9:
+                self.feedback.publish_rune(
+                    (role, my_champ_id, "unavailable"), "rune_unavailable", role, my_champ_id
+                )
                 print(
                     f"[RUNES] Invalid selectedPerkIds for championId={my_champ_id}: {page_data.get('selectedPerkIds')}"
                 )
@@ -209,7 +249,7 @@ class AutomationRunner:
                 put_res = self._client.update_rune_page(pid, payload)
                 if put_res.status_code in (200, 201, 204):
                     print(f"[RUNES] Updated rune page id={pid} name={name}")
-                    return True
+                    return applied()
                 print(f"[RUNES] Failed to update rune page: {put_res.status_code} {put_res.text}")
                 return False
 
@@ -237,7 +277,7 @@ class AutomationRunner:
             create_res = self._client.create_rune_page(create_payload)
             if create_res.status_code in (200, 201, 204):
                 print(f"[RUNES] Created rune page {desired_page_name}")
-                return True
+                return applied()
 
             # If we hit the page limit, try cleaning up old automation pages then retry.
             if (
@@ -277,7 +317,7 @@ class AutomationRunner:
                     retry_res = self._client.create_rune_page(create_payload)
                     if retry_res.status_code in (200, 201, 204):
                         print(f"[RUNES] Created rune page {desired_page_name} (after cleanup)")
-                        return True
+                        return applied()
 
                 # 3) As a last resort, overwrite the currently selected editable page.
                 current_page = next(
@@ -299,6 +339,11 @@ class AutomationRunner:
             print(f"[RUNES] Failed to create rune page: {create_res.status_code} {create_res.text}")
             return False
 
+        except QueryUnavailable:
+            self.feedback.publish_rune(
+                (role, my_champ_id, "unavailable"), "rune_unavailable", role, my_champ_id
+            )
+            return False
         except Exception as e:
             print(f"[RUNES] Error applying runes: {e}")
             return False
@@ -320,6 +365,7 @@ class AutomationRunner:
         progress = AutomationProgress()
         handoff_key = None
         self.feedback.clear()
+        self.feedback.clear_rune()
         pause = wait if wait is not None else self._sleep
 
         while should_run():
@@ -403,6 +449,7 @@ class AutomationRunner:
                     progress.reset(snapshot.revision)
                     handoff_key = None
                     self.feedback.clear()
+                    self.feedback.clear_rune()
 
                 if session:
                     phase = session.get("timer", {}).get("phase", "")
@@ -490,11 +537,13 @@ class AutomationRunner:
                             ),
                             None,
                         )
-                        if rune_champion and progress.rune_champion != rune_champion:
+                        rune_key = (assigned_role, rune_champion)
+                        if rune_champion and progress.rune_key != rune_key:
                             if self.apply_runes(session, cfg, should_run=should_run):
-                                progress.rune_champion = rune_champion
+                                progress.rune_key = rune_key
                     else:
-                        progress.rune_champion = None
+                        progress.rune_key = None
+                        self.feedback.clear_rune()
 
                     if not should_run():
                         break
