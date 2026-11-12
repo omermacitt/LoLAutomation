@@ -253,8 +253,9 @@ The Python backend lives under `src/rune_pilot/`:
 The React interface lives in `frontend/` and accesses the backend over HTTP.
 Architecture tests enforce the Python dependency boundaries.
 
-- [Developer guide and layer rules](CLAUDE.md)
 - [React setup and behavior details](frontend/README.md)
-- [Roadmap](ROADMAP.md)
-- [UI migration plan](docs/plans/ui-modernization.md)
-- [UX scenarios and validation limits](docs/qa/ux-scenarios.md)
+
+Build recipes remain in the source repository: [backend.spec](backend.spec)
+packages the native application's Python service, and [run_app.spec](run_app.spec)
+packages the retained Qt fallback. They are build inputs, not files installed
+separately on users' computers.

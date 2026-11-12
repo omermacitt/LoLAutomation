@@ -242,25 +242,8 @@ değiştirmez, giriş yapmaz ve otomasyonu başlatmaz. Şampiyon kontrolü backe
 yoksa atlanır; rün ve kostüm kontrolleri açık League gerektirir.
 Ekran görüntüleri `test-results/` altındadır.
 
-28 Ekim doğrulaması: 46 frontend testi, 63 tarayıcı kontrolü (canlı kontrollerin
-diğer boyutlardaki altı tekrarı atlandı), 350 Python testi ve üretim derlemesi geçti.
-Canlı ayar/ETag, 173 şampiyonluk katalog, gerçek PNG portreleri ve beş rün ağacı doğrulandı.
-Teemo'nun sahip olunan kostümleri ve gerçek JPEG görselleri de profili değiştirmeden doğrulandı.
-1920 piksel pencerede 11 sütun / 33 kart ayrıca kontrol edildi. Oyun komutları
-sahte backend üzerinde sınanmıştır; gerçek oyun içi uygulama doğrulaması ayrıdır.
-
-29 Ekim rün kayıt düzeltmesi: `insertBefore` hatası çevirinin metin düğümlerini
-değiştirmesi taklit edilerek yeniden üretildi. Düğme yapısı düzeltildikten sonra
-48 frontend testi, 67 tarayıcı kontrolü ve üretim derlemesi geçti; canlı veri
-kontrollerinin diğer boyutlardaki sekiz tekrarı atlandı. Profil kopyasında üç
-preset, gerçek katalog doğrulamasıyla kaydedildi; gerçek profil değiştirilmedi.
-
-29 Ekim manuel seçim/UX turu: 360 Python testi, 54 frontend testi, 73 tarayıcı
-kontrolü ve üretim derlemesi geçti; sekiz canlı test tekrarı atlandı. Bağımsız
-UX agent'i Mid/ADC hazırlığı, boş Jungle, sayfalar arası gerçek tıklamalar,
-ses engeli, manuel kilit ve Durdur akışını 1440/390 px'de ayrıca doğruladı.
-Senaryolar ve test sınırları: [UX incelemesi](../docs/qa/ux-scenarios.md).
-Gerçek maçta otomatik seçim/kilit ve fiziksel ses testi yapılmadı.
+Mock testleri gerçek maçta otomatik seçim/kilit veya fiziksel ses doğrulaması
+sayılmaz. Gerçek League kabulü, kullanıcının yönettiği ayrı bir oturumda yapılır.
 
 Grid ölçümü için [ResizeObserver](https://developer.mozilla.org/en-US/docs/Web/API/ResizeObserver)
 kullanılır; yüklenme/boş/hata durumlarında da ölçüm alanı korunur.
