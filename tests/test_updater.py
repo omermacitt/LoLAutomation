@@ -23,6 +23,15 @@ def test_is_newer():
     assert updater._is_newer("1.2", "1.2.0") is False
 
 
+def test_prerelease_precedence_and_build_metadata():
+    assert updater._is_newer("1.0.0-beta.2", "1.0.0-beta.1")
+    assert updater._is_newer("1.0.0-beta.10", "1.0.0-beta.2")
+    assert updater._is_newer("1.0.0", "1.0.0-rc.1")
+    assert not updater._is_newer("1.0.0-rc.1", "1.0.0")
+    assert not updater._is_newer("1.0.0+new-build", "1.0.0+old-build")
+    assert not updater._is_newer("1.0.0-beta.1", "1.0.0-beta.2")
+
+
 def test_pick_asset_prefers_setup_exe():
     assets = [
         {"name": "notes.txt", "browser_download_url": "u1"},

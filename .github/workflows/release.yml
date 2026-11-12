@@ -6,7 +6,7 @@ on:
       tag:
         description: Exact version tag from app_meta.py
         required: true
-        default: v1.0.0-beta.1
+        default: v1.0.0
   push:
     tags: ['v*']
 
@@ -24,6 +24,12 @@ jobs:
       QT_QPA_PLATFORM: offscreen
     steps:
       - uses: actions/checkout@v4
+      - name: Verify update signing configuration
+        env:
+          UPDATE_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          UPDATE_PUBLIC_KEY: ${{ vars.RUNEPILOT_UPDATE_PUBLIC_KEY }}
+        run: |
+          if (!$env:UPDATE_PRIVATE_KEY -or !$env:UPDATE_PUBLIC_KEY) { throw 'Configure TAURI_SIGNING_PRIVATE_KEY secret and RUNEPILOT_UPDATE_PUBLIC_KEY variable before building a release.' }
       - uses: actions/setup-python@v5
         with:
           python-version: '3.13.3'
@@ -64,8 +70,29 @@ jobs:
           npx playwright install msedge
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
           npm run test:e2e
-      - name: Build versioned Setup and verify frozen backend
-        run: .\tools\build_desktop.ps1
+      - name: Build previous native fixture with an owned retired component
+        run: |
+          git fetch --depth=1 origin 988ab21de236543dd68f9ec1e2a08be2be8d86e2
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          git worktree add --detach build/upgrade-previous 988ab21de236543dd68f9ec1e2a08be2be8d86e2
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          $previous = Join-Path $env:GITHUB_WORKSPACE 'build/upgrade-previous'
+          New-Item -ItemType Junction -Path "$previous/frontend/node_modules" -Target "$env:GITHUB_WORKSPACE/frontend/node_modules" | Out-Null
+          New-Item -ItemType Directory -Force frontend/src-tauri/target | Out-Null
+          New-Item -ItemType Junction -Path "$previous/frontend/src-tauri/target" -Target "$env:GITHUB_WORKSPACE/frontend/src-tauri/target" | Out-Null
+          $configPath = Join-Path $previous 'frontend/src-tauri/tauri.conf.json'
+          $config = Get-Content -Raw -LiteralPath $configPath | ConvertFrom-Json
+          $config.bundle | Add-Member -NotePropertyName resources -NotePropertyValue @{ 'owned-old-code.txt' = 'retired/owned-old-code.txt' }
+          [IO.File]::WriteAllText($configPath, ($config | ConvertTo-Json -Depth 20), [Text.UTF8Encoding]::new($false))
+          [IO.File]::WriteAllText((Join-Path $previous 'frontend/src-tauri/owned-old-code.txt'), 'retired installed component')
+          & "$previous/tools/build_desktop.ps1" -Python "$env:GITHUB_WORKSPACE/.venv/Scripts/python.exe"
+          Set-Location -LiteralPath $env:GITHUB_WORKSPACE
+      - name: Build signed complete Setup and update manifest
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          RUNEPILOT_UPDATE_PUBLIC_KEY: ${{ vars.RUNEPILOT_UPDATE_PUBLIC_KEY }}
+        run: .\tools\build_desktop.ps1 -SignedUpdates
       - name: Native Rust checks
         run: |
           cargo fmt --manifest-path frontend/src-tauri/Cargo.toml --check
@@ -74,9 +101,15 @@ jobs:
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
           cargo clippy --locked --manifest-path frontend/src-tauri/Cargo.toml -- -D warnings
       - name: Disposable runner installer and process smoke
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
+          New-Item -ItemType Directory -Force build/legacy | Out-Null
+          gh release download v0.0.2 --repo $env:GITHUB_REPOSITORY --pattern RunePilotSetup-0.0.2.exe --dir build/legacy
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          if ((Get-FileHash -Algorithm SHA256 build/legacy/RunePilotSetup-0.0.2.exe).Hash -ne 'A037C439698614A02A2C4DD18052306C6DDF9548514AE44C57229B261A743E89') { throw 'Legacy fixture does not match the audited release' }
           $version = (& .\.venv\Scripts\python.exe tools/release_version.py --print).Trim()
-          .\.venv\Scripts\python.exe tools/smoke_installer.py "dist/desktop/$version/RunePilotSetup-$version-x64.exe"
+          .\.venv\Scripts\python.exe tools/smoke_installer.py "dist/desktop/$version/RunePilotSetup-$version-x64.exe" --legacy build/legacy/RunePilotSetup-0.0.2.exe --previous build/upgrade-previous/dist/desktop/1.0.0-beta.1/RunePilotSetup-1.0.0-beta.1-x64.exe
       - uses: actions/upload-artifact@v4
         with:
           name: RunePilot-Windows-x64
@@ -109,4 +142,4 @@ jobs:
           flags=()
           if [[ "$RELEASE_TAG" == *-* ]]; then flags+=(--prerelease); fi
           mapfile -d '' artifacts < <(find release -type f -print0)
-          gh release create "$RELEASE_TAG" "${artifacts[@]}" --draft "${flags[@]}" --target "$SOURCE_SHA" --title "RunePilot $RELEASE_TAG" --notes 'Windows x64 desktop preview. Manual Riot/League sign-in. Review clean Windows install, old-version migration and real League acceptance before publishing. Installer is not Authenticode signed; in-app updates are not enabled in this beta.'
+          gh release create "$RELEASE_TAG" "${artifacts[@]}" --draft "${flags[@]}" --target "$SOURCE_SHA" --title "RunePilot $RELEASE_TAG" --notes 'Complete Windows x64 update; game settings are preserved. Manual Riot/League sign-in. Review installer migration and real League acceptance before publishing. Updates use the Tauri signature; Windows Authenticode is separate. Legacy Qt clients discover stable releases only. Publish the beta update feed separately after accepting a prerelease.'

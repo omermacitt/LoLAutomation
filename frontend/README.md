@@ -213,15 +213,17 @@ Sekmeyi doğrudan kapatırken/yenilerken kaydedilmemiş veri, devam eden komut v
 çalışan/durumu bilinmeyen otomasyon varsa standart tarayıcı uyarısı istenir.
 Tarayıcı kapanış olayında asenkron kaydın tamamlanması garanti edilemez; kullanıcı
 uyarıyı geçerse veya süreç zorla kapanırsa kontrollü çıkış atlanabilir. Tauri
-aşamasındaki native kapanış kapısı henüz uygulanmadı.
+aşamasındaki native kapanış kapısı kayıt ve doğrulanmış Stop'u bekler.
 [Tarayıcı beforeunload sınırları](https://developer.mozilla.org/en-US/docs/Web/API/Window/beforeunload_event)
 
 ## Sonraki işler
 
 Portreler ve kostüm görselleri mevcut League
 istemcisinden alınır; harici görsel servisi gerekmez. Backend bilinen normal
-şampiyonların PNG portrelerini sınırlı bellekte beş dakika önbellekler. Paketleme,
-tepsi, güncelleme ve Tauri yardımcı süreç yaşam döngüsü sonraki aşamalarda.
+şampiyonların PNG portrelerini sınırlı bellekte beş dakika önbellekler.
+Tepsi ve gerçek Windows/League kabulü ayrı aşamalardır. Native yardımcı süreç
+yaşam döngüsü ve imzalı güncelleme akışı uygulanmıştır; yayın anahtarları ve
+kurulu sürümler arası kabul tamamlanmadan güncelleme yayımlanmaz.
 
 ## Kod yapısı
 
@@ -262,3 +264,51 @@ kullanılır; yüklenme/boş/hata durumlarında da ölçüm alanı korunur.
 
 `npm run preview` statik çıktıyı inceler; geliştirme API proxy'sini sağlamaz.
 Gerçek API ile şimdilik `npm run dev` kullan.
+
+## Tam paket güncellemeleri
+
+Native uygulama açılışta yeni sürümü kontrol eder; ayrıca **Güncellemeleri kontrol
+et** düğmesi bulunur. Güncelle, imzalı Setup'ın tamamını indirir ve doğrular.
+Kurulumdan önce güncel ayarlar kaydedilir ve otomasyonun durduğu doğrulanır.
+Açık rün taslağı, kayıt/Stop hatası veya geçersiz imza kurulumu engeller.
+İndirme hatasında mevcut uygulama kullanılabilir. Frontend ve backend birlikte
+değişir; `%APPDATA%/RunePilot` oyun ayarları kaldırılmaz.
+
+Yayımlanmış Qt 0.0.2 paketi `omermacitt/LoLAutomation/releases/latest` üzerinden
+kararlı sürümleri bulur. İlk geçiş **kararlı**, taslak olmayan ve GitHub'da latest
+olarak seçilen bir sürüm gerektirir (örneğin `v1.0.0`). Bir beta release eski
+istemcilere bu yoldan görünmez. `RunePilotSetup-<version>-x64.exe` adı eski
+istemcinin asset seçimiyle uyumludur. Setup, doğrulanmış eski Inno kurulumunun
+kendi kaldırıcısını kullanır; rastgele kurulum klasörünü silmez. Eski sürümü
+güncellemeden önce otomasyonu durdurup açık düzenlemeleri kaydetmek gerekir:
+önceden dağıtılmış binary'ye yeni kapanış güvenceleri geriye dönük eklenemez.
+
+Native kararlı sürümler yeni kararlı release'in `latest.json` dosyasını okur.
+Beta sürümler ayrı `update-beta` prerelease'indeki manifesti okur. Beta kabul
+edilip yayımlandıktan sonra **Promote published beta update** workflow'u ilgili
+etiketle elle çalıştırılır; kararlı kullanıcılar beta kanalına taşınmaz.
+
+Yayıncı için tek seferlik anahtar kurulumu:
+
+```powershell
+# Kalıcı özel anahtarı repo/build klasörünün dışında oluştur; yedeğini sakla.
+.\tools\create_update_keys.ps1 -KeyDirectory "$env:USERPROFILE\RunePilotReleaseKeys"
+```
+
+GitHub Actions'ta `TAURI_SIGNING_PRIVATE_KEY` ve
+`TAURI_SIGNING_PRIVATE_KEY_PASSWORD` secrets'larını, `.pub` dosyasının içeriğiyle
+`RUNEPILOT_UPDATE_PUBLIC_KEY` repository variable'ını ayarla. Özel anahtarı
+repoya, loglara veya release dosyalarına ekleme. Aynı anahtar sonraki sürümlerde
+korunmalıdır; kurulu uygulamalar onun açık anahtarına güvenir.
+
+`tools/build_desktop.ps1 -SignedUpdates` bu ortam değerlerini ister ve Setup,
+`.exe.sig`, `latest.json`, `SHA256SUMS.txt` ve build manifestini üretir. Release
+workflow'u imzalı build'i zorunlu tutar ve çıktıyı taslak bırakır. Anahtarsız
+yerel build güncelleme almaz. Güncelleme imzası Windows Authenticode imzasından
+ayrıdır. [Tauri updater belgesi](https://v2.tauri.app/plugin/updater/).
+
+Yayımlamadan önce disposable Windows runner'da gerçek 0.0.2 kurucusundan
+geçiş, eski uygulama dosyalarının kaldırılması, kişisel dosya/ayarların korunması
+ve ardışık iki native sürüm arasında yükseltme doğrulanmalıdır. İmza testleri
+çalıştırılabilir kurucu başlatmaz; native komutları taklit eden browser testleri
+gerçek Windows kurulum kabulünün yerine geçmez.

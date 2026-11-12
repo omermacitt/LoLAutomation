@@ -1,0 +1,12 @@
+.desktop-update-trigger { display: flex; align-items: center; width: 100%; gap: 8px; padding: 12px; background: none; color: #c9b7ee; text-align: left; font-size: 10px; }
+.desktop-updates { display: flex; gap: 16px; justify-content: space-between; align-items: flex-start; margin: 12px 28px; padding: 12px 16px; border: 1px solid #3e3a58; border-radius: 10px; background: #191923; font-size: 12px; }
+.desktop-updates strong { color: #e3ddeb; }
+.desktop-updates p { color: #b9b3c7; margin: 6px 0 0; line-height: 1.5; }
+.desktop-updates p[role=alert] { color: #f3a4a4; }
+.desktop-updates details { margin-top: 6px; color: #c9b7ee; }
+.desktop-updates summary { cursor: pointer; }
+.desktop-updates__notes { white-space: pre-wrap; max-height: 130px; overflow: auto; overflow-wrap: anywhere; }
+.desktop-updates__actions { display: flex; gap: 8px; flex-shrink: 0; flex-wrap: wrap; }
+.desktop-updates__actions .button { white-space: normal; }
+@media (max-width: 1100px) { .desktop-updates { flex-direction: column; margin: 10px 16px; } }
+@media (max-width: 960px) { .desktop-update-trigger > span { display: none; } .desktop-update-trigger { justify-content: center; padding: 12px; } }

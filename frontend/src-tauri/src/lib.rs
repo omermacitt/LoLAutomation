@@ -1,5 +1,6 @@
 mod backend;
 mod policy;
+mod updates;
 
 use backend::{ApiRequest, ApiResponse, SharedBackend, Status};
 use std::sync::{
@@ -11,6 +12,7 @@ use tauri::{Emitter, Manager};
 struct Desktop {
     backend: SharedBackend,
     closing: Arc<AtomicBool>,
+    updates: updates::Updates,
 }
 
 #[tauri::command]
@@ -23,11 +25,54 @@ async fn desktop_request(
     state: tauri::State<'_, Desktop>,
     input: ApiRequest,
 ) -> Result<ApiResponse, String> {
+    if state.updates.installing.load(Ordering::SeqCst) {
+        return Err("Güncelleme kuruluyor. İşlemin tamamlanmasını bekle.".into());
+    }
     backend::json_request(&state.backend, input).await
 }
 
 #[tauri::command]
+async fn desktop_update_check(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, Desktop>,
+) -> Result<updates::Check, String> {
+    state.updates.check(&app).await
+}
+
+#[tauri::command]
+async fn desktop_update_download(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, Desktop>,
+) -> Result<(), String> {
+    state.updates.download(&app).await
+}
+
+#[tauri::command]
+async fn desktop_update_install(state: tauri::State<'_, Desktop>) -> Result<(), String> {
+    let (update, bytes) = state.updates.take_install()?;
+    let backend = state.backend.clone();
+    let result = tauri::async_runtime::spawn_blocking(move || {
+        backend::stop(&backend);
+        update.install(bytes)
+    })
+    .await;
+    // Successful Windows install exits this process. On launch failure restore
+    // the existing backend; never leave a usable app with an orphaned sidecar.
+    state.updates.installing.store(false, Ordering::SeqCst);
+    backend::recover_after_update(state.backend.clone());
+    match result {
+        Ok(Ok(())) => Ok(()),
+        _ => Err(
+            "Kurucu başlatılamadı. Mevcut sürüme yeniden bağlanıp tekrar deneyebilirsin.".into(),
+        ),
+    }
+}
+
+#[tauri::command]
 fn desktop_restart(state: tauri::State<'_, Desktop>) -> Result<(), String> {
+    if state.updates.installing.load(Ordering::SeqCst) {
+        return Err("Güncelleme kuruluyor.".into());
+    }
     backend::restart(state.backend.clone())
 }
 
@@ -36,6 +81,9 @@ async fn desktop_close(
     app: tauri::AppHandle,
     state: tauri::State<'_, Desktop>,
 ) -> Result<(), String> {
+    if state.updates.installing.load(Ordering::SeqCst) {
+        return Err("Güncelleme kuruluyor.".into());
+    }
     if state.closing.swap(true, Ordering::SeqCst) {
         return Ok(());
     }
@@ -54,6 +102,7 @@ pub fn run() {
     let backend = backend::Backend::new();
     let cleanup = backend.clone();
     tauri::Builder::default()
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(
             tauri::plugin::Builder::<tauri::Wry>::new("local-navigation")
                 .on_navigation(|_, url| {
@@ -77,12 +126,16 @@ pub fn run() {
         .manage(Desktop {
             backend: backend.clone(),
             closing: Arc::new(AtomicBool::new(false)),
+            updates: updates::Updates::default(),
         })
         .invoke_handler(tauri::generate_handler![
             desktop_status,
             desktop_request,
             desktop_restart,
-            desktop_close
+            desktop_close,
+            desktop_update_check,
+            desktop_update_download,
+            desktop_update_install
         ])
         .register_asynchronous_uri_scheme_protocol("runepilot", |context, request, responder| {
             if request.method() != tauri::http::Method::GET || request.uri().query().is_some() {

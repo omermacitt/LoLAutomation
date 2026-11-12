@@ -291,6 +291,16 @@ pub fn restart(shared: SharedBackend) -> Result<(), String> {
     Ok(())
 }
 
+pub fn recover_after_update(shared: SharedBackend) {
+    {
+        let mut state = shared.lock().unwrap();
+        state.status.phase = "failed".into();
+        state.status.error =
+            Some("Güncelleme başlatılamadı. Mevcut sürüme yeniden bağlanılıyor.".into());
+    }
+    let _ = restart(shared);
+}
+
 #[derive(Deserialize)]
 pub struct ApiRequest {
     pub method: String,

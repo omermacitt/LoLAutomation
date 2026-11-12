@@ -1,0 +1,40 @@
+name: Promote published beta update
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Accepted, already published beta release tag
+        required: true
+
+permissions:
+  contents: write
+
+concurrency:
+  group: beta-update-feed
+  cancel-in-progress: false
+
+jobs:
+  promote:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate the published beta before updating its feed
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ inputs.tag }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+-(alpha|beta|rc)\.[0-9]+$ ]]
+          gh api "repos/$GH_REPO/releases/tags/$RELEASE_TAG" > release.json
+          jq -e '.draft == false and .prerelease == true' release.json >/dev/null
+          mkdir package
+          gh release download "$RELEASE_TAG" --dir package --pattern 'latest.json' --pattern '*.sig' --pattern '*-x64.exe' --pattern 'SHA256SUMS.txt'
+          (cd package && sha256sum --strict --check SHA256SUMS.txt)
+          python tools/verify_update_feed.py package "$RELEASE_TAG" "$GH_REPO"
+          if ! gh release view update-beta >/dev/null 2>&1; then
+            gh release create update-beta --prerelease --latest=false --title 'Beta update feed' --notes 'Metadata for accepted beta packages. This is not a stable release.'
+          fi
+          gh release upload update-beta package/latest.json --clobber
