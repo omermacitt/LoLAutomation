@@ -22,6 +22,7 @@ import { SkinGallery } from './features/skins/SkinGallery'
 import type { SkinRequest } from './features/skins/SkinGallery'
 import './styles.css'
 import { useDesktopLifecycle } from './desktop/DesktopHost'
+import { DesktopUpdates } from './desktop/DesktopUpdates'
 
 
 export default function App({ api = apiClient }: { api?: PilotApi }) {
@@ -82,6 +83,7 @@ export default function App({ api = apiClient }: { api?: PilotApi }) {
       </nav>
       <div className="sidebar-note"><span className="sidebar-note__symbol">✦</span><span>Sen oyununa odaklan.<br /><strong>Hazırlık bizde.</strong></span></div>
       <div className="sidebar__bottom">
+        <DesktopUpdates workspace={workspace} />
         <button className="help-button" onClick={() => setHelpOpen(!helpOpen)} aria-expanded={helpOpen} aria-controls="help-text"><CircleHelp size={17} />Bu sürüm hakkında<ChevronRight size={15} /></button>
         {helpOpen && <p className="help-text" id="help-text">Riot Client’ta kendin giriş yapıp League’i aç. Şampiyon, büyü ve kostüm seçimlerin otomatik kaydedilir. Rün presetlerini editörden kaydet. Oyun işlemleri otomasyon açıkken uygulanır. Çıkmadan önce Kaydet ve oturumu bitir düğmesini kullanabilirsin.</p>}
         <div className={`connection ${health.data ? 'connection--online' : ''}`}>
@@ -93,6 +95,7 @@ export default function App({ api = apiClient }: { api?: PilotApi }) {
     </aside>
 
     <main id="main" className={`main-content ${section === 'runes' ? 'main-content--runes' : ''}`}>
+      <div id="desktop-update-panel" />
       <header className="topbar"><div className="breadcrumb"><Crosshair size={15} /><span>League of Legends</span><ChevronRight size={13} /><strong>Hazırlık</strong></div><span className="preview-badge"><span />Geliştirme sürümü</span></header>
       <nav className="mobile-section-nav" aria-label="Görünüm"><button aria-label="Şampiyonlar" aria-pressed={section === 'champions'} onClick={() => setSection('champions')}><SectionIcon section="champions" size={16} />Şampiyonlar</button><button aria-label="Rünler" aria-pressed={section === 'runes'} onClick={() => openRunes(target.kind === 'pick' ? activeId ?? undefined : picks[0] ?? undefined)}><SectionIcon section="runes" size={16} />Rünler</button><button aria-label="Kostümler" aria-pressed={section === 'skins'} onClick={() => openSkins(target.kind === 'pick' ? activeId ?? undefined : picks[0] ?? undefined)}><SectionIcon section="skins" size={16} />Kostümler</button></nav>
       <div hidden={section !== 'champions'}>

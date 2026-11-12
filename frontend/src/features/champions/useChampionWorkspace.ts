@@ -42,6 +42,7 @@ export function useChampionWorkspace(api: PilotApi) {
   const settingsRef = useRef<Settings | undefined>(undefined)
   const commandEpoch = useRef(0)
   const actionGate = useRef(false)
+  const updateLease = useRef(false)
   const lastSaved = useRef(0)
   const mounted = useRef(true)
 
@@ -262,6 +263,37 @@ export function useChampionWorkspace(api: PilotApi) {
     return (config) => { noteRuneAssignment(id, runeRole); return assignPreset(config, id, slot, runeRole) }
   })
 
+  const cancelUpdate = () => {
+    if (!updateLease.current) return
+    updateLease.current = false
+    actionGate.current = false
+    setClosing(false)
+  }
+  const prepareUpdate = async () => {
+    if (actionGate.current || closing || ended || runeBusy || automation.busy) return false
+    if (runeEditorDirty) {
+      setActionError('Güncellemeden önce rün düzenlemelerini kaydet veya geri al.')
+      return false
+    }
+    actionGate.current = true
+    updateLease.current = true
+    setClosing(true)
+    setActionError(undefined)
+    const epoch = ++commandEpoch.current
+    try {
+      await writer.flush()
+      if (epoch !== commandEpoch.current || !mounted.current) throw new Error('Bağlantı değişti. Güncellemeyi tekrar dene.')
+      await engine.stop()
+      if (epoch !== commandEpoch.current || !mounted.current) throw new Error('Bağlantı değişti. Güncellemeyi tekrar dene.')
+      // Hold the edit/Start gate until installer launch or explicit abort.
+      // finish() would set ended and close the native host too early.
+      return true
+    } catch (error) {
+      if (mounted.current) setActionError(message(error))
+      cancelUpdate()
+      return false
+    }
+  }
   const suspendConnection = () => { commandEpoch.current++; writer.suspend(); engine.suspendConnection() }
   const resumeConnection = () => { writer.resume(); setAttempt((value) => value + 1); void engine.check() }
   // Used only after explicit confirmation in the native error fallback. React
@@ -288,7 +320,7 @@ export function useChampionWorkspace(api: PilotApi) {
     ready: editable, dirty: saveState.dirty, saveState, automation, preparing, closing, ended,
     portraitRetryKey: attempt,
     runeBusy, runeEditorDirty, setRuneEditorDirty, saveRunePreset, deleteRunePreset, discardRunePreset, selectRunePreset, canDiscardRunePreset,
-    actionError, choose, editSettings, changeSpell, changeSkin, reorder, start, stop, finish, recoverFinish, reloadSettings, apply, suspendConnection, resumeConnection,
+    actionError, choose, editSettings, changeSpell, changeSkin, reorder, start, stop, finish, recoverFinish, reloadSettings, apply, suspendConnection, resumeConnection, prepareUpdate, cancelUpdate,
     save: () => { void writer.flush().catch(() => {}) }, reset: () => { writer.reset(); failedRuneRoles.current.clear(); failedRuneDeletes.current.clear() },
     retry: () => { setAttempt((value) => value + 1); void engine.check() } }
 }

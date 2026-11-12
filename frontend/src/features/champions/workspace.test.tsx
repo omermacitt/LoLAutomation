@@ -13,6 +13,42 @@ function makeApi(): PilotApi {
 }
 
 describe('champion workspace ordering and data safety', () => {
+  it('prepares an update through final save and confirmed Stop without ending the UI; holds edits until abort', async () => {
+    const api = makeApi(); const pending = deferred<Settings>()
+    vi.mocked(api.saveSettings).mockReturnValueOnce(pending.promise)
+    const { result } = renderHook(() => useChampionWorkspace(api))
+    await waitFor(() => expect(result.current.ready).toBe(true))
+    act(() => result.current.editSettings({ queue_name: 'Ranked Flex' }))
+    let preparing!: Promise<boolean>
+    act(() => { preparing = result.current.prepareUpdate() })
+    expect(api.stop).not.toHaveBeenCalled()
+    act(() => result.current.editSettings({ queue_name: 'Ranked Solo' }))
+    await act(async () => { pending.resolve({ ...settings, queue_name: 'Ranked Flex' }); expect(await preparing).toBe(true) })
+    expect(api.stop).toHaveBeenCalledOnce(); expect(result.current.ended).toBe(false)
+    expect(result.current.closing).toBe(true); expect(result.current.saveState.saved?.queue_name).toBe('Ranked Flex')
+    await act(async () => result.current.start()); expect(api.start).not.toHaveBeenCalled()
+    act(() => result.current.cancelUpdate()); expect(result.current.closing).toBe(false)
+    act(() => result.current.editSettings({ queue_name: 'Ranked Solo' }))
+    expect(result.current.draft?.queue_name).toBe('Ranked Solo')
+  })
+
+  it('refuses update on a rune draft, failed save or unconfirmed Stop and releases the gate', async () => {
+    const api = makeApi(); const { result } = renderHook(() => useChampionWorkspace(api))
+    await waitFor(() => expect(result.current.ready).toBe(true))
+    act(() => result.current.setRuneEditorDirty(true))
+    await act(async () => expect(await result.current.prepareUpdate()).toBe(false))
+    expect(api.stop).not.toHaveBeenCalled()
+    act(() => { result.current.setRuneEditorDirty(false); result.current.editSettings({ queue_name: 'Ranked Flex' }) })
+    vi.mocked(api.saveSettings).mockRejectedValueOnce(new Error('disk full'))
+    await act(async () => expect(await result.current.prepareUpdate()).toBe(false))
+    expect(api.stop).not.toHaveBeenCalled(); expect(result.current.closing).toBe(false)
+    vi.mocked(api.health).mockResolvedValue({ ...health, running: true })
+    await act(async () => expect(await result.current.prepareUpdate()).toBe(false))
+    expect(result.current.ended).toBe(false); expect(result.current.closing).toBe(false)
+    expect(result.current.saveState.dirty).toBe(false)
+    expect(api.start).not.toHaveBeenCalled()
+  })
+
   it('recovers an unmounted dirty rune workspace through save and Stop errors without stale render gates', async () => {
     const api = makeApi()
     const pending = deferred<Settings>()

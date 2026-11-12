@@ -154,8 +154,24 @@ share a cross-process file lock.
 
 ## GitHub release updates
 
-The PyQt6 client can check for updates when a repository is configured. No update
-repository is configured by default.
+The native client checks for updates at startup and offers an **Update** action.
+Signed release builds download and verify the complete installer, save pending
+settings, confirm automation has stopped, and replace the previous application's
+recorded program files. Game settings and unrelated user files are preserved.
+Download, signature, settings or Stop failures prevent installation.
+
+Stable and beta releases have separate manifest feeds. Published Qt v0.0.2 clients
+discover stable GitHub releases; the first transition therefore needs a published
+stable/latest release with a `RunePilotSetup-<version>-x64.exe` asset. Their
+existing update button can launch that Setup. Native beta.1 builds distributed
+without an updater need a one-time new Setup installation.
+
+Signing keys and release acceptance must be configured before publishing; an
+unsigned local build does not receive updates. See the
+[update build and signing guide](frontend/README.md#tam-paket-güncellemeleri).
+
+The retained PyQt6 fallback uses `omermacitt/LoLAutomation` by default and supports
+these backend environment settings:
 
 | Environment variable | Purpose |
 | --- | --- |
@@ -163,7 +179,7 @@ repository is configured by default.
 | `RUNEPILOT_GITHUB_TOKEN` | Optional token for private releases; falls back to `GITHUB_TOKEN` |
 | `RUNEPILOT_DISABLE_AUTO_UPDATE` | `1`, `true`, `yes` or `on` disables update checks |
 
-Only newer numeric release versions are offered. Setup/installer `.exe` assets
+Only newer release versions are offered, including prerelease precedence. Setup/installer `.exe` assets
 are preferred over standalone executables. A release without an installer keeps
 the browser-based release-page flow. Installer downloads require a release
 registered by the backend and an HTTPS GitHub asset URL under the configured
@@ -210,7 +226,7 @@ npm.cmd ci --prefix frontend
 .\tools\build_desktop.ps1
 ```
 
-Output: `dist/desktop/1.0.0-beta.1/RunePilotSetup-1.0.0-beta.1-x64.exe`,
+Output: `dist/desktop/1.0.0/RunePilotSetup-1.0.0-x64.exe`,
 `SHA256SUMS.txt` and `build-manifest.json`. End users need the Setup file;
 Python, Node and this repository are bundled or unnecessary. WebView2 is installed
 by the bootstrapper if missing, which requires Internet access.
@@ -224,8 +240,12 @@ The version source is `src/rune_pilot/shared/app_meta.py`. After editing it, run
 `python tools/release_version.py --sync`; the build rejects mismatched manifests.
 [Windows beta workflow](.github/workflows/release.yml) checks tags, tests and builds
 the installer, then creates a **draft** release. It never publishes on a main push.
-This beta has no Authenticode signature or enabled in-app updater. Older v0.0.2
-users need a manual migration check; in-place upgrade compatibility is unverified.
+Signed update builds additionally produce `.exe.sig` and `latest.json`; use
+`tools/build_desktop.ps1 -SignedUpdates` with the documented signing environment.
+The complete Setup signature, public key and version are verified before export.
+The release workflow tests old Inno and previous native migration on its
+disposable Windows runner. These checks must pass before publication.
+Windows Authenticode signing is separate from update signing and is not configured.
 Clean Windows installation, v0.0.2 migration and real League acceptance remain
 pending. Keep this build as a preview until those checks are complete.
 

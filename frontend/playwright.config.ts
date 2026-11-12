@@ -10,6 +10,7 @@ export default defineConfig({
     { name: 'desktop', use: { viewport: { width: 1440, height: 1000 } } },
     { name: 'compact', use: { viewport: { width: 1024, height: 768 } } },
     { name: 'mobile-width', use: { viewport: { width: 390, height: 844 } } },
+    { name: 'native-minimum', testMatch: /desktop-updates\.spec\.ts/, use: { viewport: { width: 900, height: 650 } } },
   ],
   webServer: { command: 'npm run dev', url: 'http://127.0.0.1:5173', reuseExistingServer: !process.env.CI },
 })

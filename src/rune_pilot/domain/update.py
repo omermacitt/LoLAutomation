@@ -36,9 +36,29 @@ def _parse_version(value: str) -> tuple[int, ...]:
 def _is_newer(latest: str, current: str) -> bool:
     latest_parts, current_parts = _parse_version(latest), _parse_version(current)
     length = max(len(latest_parts), len(current_parts))
-    return latest_parts + (0,) * (length - len(latest_parts)) > current_parts + (0,) * (
-        length - len(current_parts)
-    )
+    left = latest_parts + (0,) * (length - len(latest_parts))
+    right = current_parts + (0,) * (length - len(current_parts))
+    if left != right:
+        return left > right
+
+    # SemVer: a stable version follows its prereleases; numeric identifiers
+    # compare numerically (beta.10 > beta.2), build metadata has no precedence.
+    def prerelease(value: str) -> list[str]:
+        base = value.strip().lstrip("vV").split("+", 1)[0]
+        return base.split("-", 1)[1].split(".") if "-" in base else []
+
+    a, b = prerelease(latest), prerelease(current)
+    if not a or not b:
+        return bool(b) and not a
+    for x, y in zip(a, b, strict=False):
+        if x == y:
+            continue
+        if x.isdigit() and y.isdigit():
+            return int(x) > int(y)
+        if x.isdigit() != y.isdigit():
+            return not x.isdigit()
+        return x > y
+    return len(a) > len(b)
 
 
 def _pick_asset(assets: list[dict]) -> dict | None:
