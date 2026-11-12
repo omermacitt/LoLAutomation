@@ -6,7 +6,6 @@ a = Analysis(
     pathex=['src'],
     binaries=[],
     datas=[
-        ('runes.json', '.'),
         ('assets/app_icon.png', 'assets'),
         ('assets/app_icon.ico', 'assets'),
     ],

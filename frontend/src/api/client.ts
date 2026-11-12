@@ -108,9 +108,9 @@ export class ApiClient implements PilotApi {
   update = async (config: AutomationConfig) => (await this.write('/automation/config', startResultSchema, 'PUT', config)).data
   stop = async () => { await this.write('/stop_automation', stopResultSchema, 'POST') }
   runeCatalog = async (signal: AbortSignal) => (await this.request('/runes/editor-catalog', runeEditorCatalogSchema, signal)).data
-  recommendedRune = async (championId: number, signal: AbortSignal) => {
-    const result = (await this.request(`/champions/${championId}/runes/recommended`, runeRecommendationSchema, signal)).data
-    if (result.champion_id !== championId) throw new ApiError('Rün önerisi bu şampiyonla eşleşmiyor.')
+  recommendedRune = async (championId: number, role: string, signal: AbortSignal) => {
+    const result = (await this.request(`/champions/${championId}/runes/recommended/${role}`, runeRecommendationSchema, signal)).data
+    if (result.champion_id !== championId || result.role !== role) throw new ApiError('Rün önerisi bu şampiyon ve rolle eşleşmiyor.')
     return result
   }
   validateRune = async (page: RunePage) => (await this.write('/runes/validate', runePageSchema, 'POST', page)).data

@@ -13,7 +13,7 @@ from rune_pilot.domain.rune_editor import (
 
 
 class RuneEditorService:
-    def __init__(self, queries: GameQueryService, recommended: Callable[[int], dict | None]):
+    def __init__(self, queries: GameQueryService, recommended: Callable[[int, str], list[dict]]):
         self._queries = queries
         self._recommended = recommended
 
@@ -27,15 +27,27 @@ class RuneEditorService:
     def validate(self, page: RunePage) -> RunePage:
         return validate_editor_page(page, self.catalog())
 
-    def recommendation(self, champion_id: int) -> RuneRecommendation:
-        page = self._recommended(champion_id)
-        if page is None:
-            return RuneRecommendation(champion_id=champion_id, unavailableReason="missing")
-        catalog = self.catalog()
-        try:
-            normalized = validate_editor_page(
-                RunePage.model_validate({**page, "name": "Önerilen"}), catalog
+    def recommendation(self, champion_id: int, role: str | None = None) -> RuneRecommendation:
+        if role is None:
+            return RuneRecommendation(champion_id=champion_id, unavailableReason="role_required")
+        pages = self._recommended(champion_id, role)
+        if not pages:
+            return RuneRecommendation(
+                champion_id=champion_id, role=role, unavailableReason="missing"
             )
-            return RuneRecommendation(champion_id=champion_id, page=normalized)
-        except ValueError:
-            return RuneRecommendation(champion_id=champion_id, unavailableReason="outdated")
+        catalog = self.catalog()
+        options = []
+        for page in pages:
+            try:
+                normalized = validate_editor_page(RunePage.model_validate(page), catalog)
+                if normalized not in options:
+                    options.append(normalized)
+            except ValueError:
+                continue
+        return RuneRecommendation(
+            champion_id=champion_id,
+            role=role,
+            page=options[0] if options else None,
+            options=options,
+            unavailableReason=None if options else "outdated",
+        )

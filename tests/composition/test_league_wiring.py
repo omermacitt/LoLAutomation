@@ -8,7 +8,6 @@ from rune_pilot.application.config_service import ConfigService
 from rune_pilot.composition.api_app import create_app
 from rune_pilot.infrastructure.config_repository import ConfigRepository
 from rune_pilot.infrastructure.league_client_adapter import LcuLeagueClient
-from rune_pilot.infrastructure.rune_data_provider import JsonRuneData
 
 
 def test_factory_wires_query_services_to_supplied_league_client(tmp_path):
@@ -44,7 +43,6 @@ def test_factory_wires_query_services_to_supplied_league_client(tmp_path):
 
     app = create_app(
         league_client=LcuLeagueClient(read),
-        rune_source=JsonRuneData(str(tmp_path / "missing.json")),
         config_service=ConfigService(ConfigRepository(str(tmp_path / "settings.json"))),
     )
     with TestClient(app) as client:

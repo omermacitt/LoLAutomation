@@ -19,7 +19,7 @@ we still want our teammates to have a good game. :D
 
 **RunePilot currently does not choose champions or runes based on the opposing
 team.** It follows your saved champion priorities and rune preferences, with
-bundled recommendations available. Matchup-aware champion and rune selection
+role recommendations from the League Client available. Matchup-aware champion and rune selection
 are planned for future updates.
 
 ## Current application
@@ -42,7 +42,7 @@ remains available as a development fallback.
   selection is handed back to the player instead of choosing a random champion.
   The React interface keeps the manual-selection notice visible across pages.
 - A rune editor with current client data, three saved presets per champion and
-  recommendations from the bundled `runes.json` dataset.
+  champion/role recommendations read directly from the running League Client.
 - Summoner spells and owned/default skin selection per role and champion, with
   champion portraits and skin artwork supplied by the running League Client.
 - Ordered settings saves, conflict detection between windows, explicit Start/Stop
@@ -50,9 +50,14 @@ remains available as a development fallback.
 - System tray support, optional Windows toast notifications and configurable
   GitHub release updates in the PyQt6 desktop client.
 
-Rune presets and the active preset selection are currently **shared across roles
-for each champion**. Role-specific rune selection is planned. Bundled rune
-recommendations are not a live meta or win-rate feed.
+Preset contents are shared per champion; the active preset can be assigned separately
+for each role. Recommended mode uses the first catalog-valid League recommendation
+for the actual champion and assigned role on Summoner's Rift. Other client suggestions
+can be previewed and copied into a custom preset. If League has no matching role
+recommendation, RunePilot asks for manual rune selection instead of applying another
+role's page. League must be open; there is no bundled recommendation dataset or web
+scraping fallback. Recommendations follow the client's data and are not a RunePilot
+win-rate or patch freshness guarantee.
 
 ## Requirements
 
@@ -145,7 +150,7 @@ is created.
 | --- | --- |
 | User settings | `%APPDATA%\RunePilot\user_config.json` |
 | Desktop application log | `%APPDATA%\RunePilot\run_app.log` |
-| Bundled recommendation data | `runes.json` in the repository root |
+| Rune recommendations | Running League Client; champion + assigned role, Summoner's Rift |
 | League Client lockfile | Common install paths, or `LOL_LOCKFILE` / `LOL_LOCKFILE_PATH` |
 
 Use one backend process for the profile. Settings writes are atomic and current

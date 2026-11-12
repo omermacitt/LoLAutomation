@@ -75,6 +75,13 @@ def run(executable: Path) -> dict:
             health = json.load(request("/health"))
             assert health["status"] == "ok" and health["running"] is False
             assert health["version"] == ready["version"]
+            # No role means no League query and no guessed recommendation, even
+            # outside the source checkout and without a bundled rune dataset.
+            recommendation = json.load(request("/champions/106/runes/recommended"))
+            assert recommendation["source"] == "league"
+            assert recommendation["role"] is None
+            assert recommendation["unavailableReason"] == "role_required"
+            assert recommendation["page"] is None and recommendation["options"] == []
             for retired in ("/accounts", "/login-jobs/active", "/league/launch"):
                 assert request(retired).code == 404
             loaded = request("/settings")
@@ -112,6 +119,7 @@ def run(executable: Path) -> dict:
                 "isolated_profile": True,
                 "parent_eof_shutdown": True,
                 "role_rune_round_trip": True,
+                "league_recommendation_contract": True,
                 "startup_seconds": round(time.monotonic() - started, 2),
             }
         finally:
