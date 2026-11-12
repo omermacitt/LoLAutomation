@@ -4,7 +4,6 @@ from PyInstaller.utils.hooks import collect_submodules
 a = Analysis(
     ["backend_main.py"], pathex=["src"],
     datas=[
-        ("runes.json", "."),
         ("src/rune_pilot/composition/desktop_routes.json", "rune_pilot/composition"),
     ],
     hiddenimports=collect_submodules("uvicorn"),

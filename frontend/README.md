@@ -125,7 +125,8 @@ rol atamasını kaldırıp eski şampiyon seçimini devreye alır. Açık öneri
 bir preset'e dönüşmez. Rün ekranı rol/şampiyon ve aktif seçimin kaynağını gösterir.
 
 Autofill, yedek ve manuel şampiyonda gerçek maç rolü esas alınır. Rol bilgisi yoksa
-eski şampiyon varsayılanı, o da yoksa veri paketindeki öneri kullanılır. Eksik veya
+eski şampiyon varsayılanı özel bir presetse kullanılabilir; rol bilinmeden öneri
+seçilmez. Eksik veya
 geçersiz bir role atanan preset yerine doğrulanmış öneri denenir; kullanılabilir
 öneri veya katalog yoksa rün yazılmaz ve ayrı bir uyarı gösterilir. Bu uyarı manuel
 şampiyon seçimi bildirimini silmez. Otomasyon özel/önerilen sayfayı oyun yazmasından
@@ -137,9 +138,15 @@ editörden kaydet veya geri al. Başarısız kayıt formu korur ve tekrar denene
 Okunamayan eski preset kendiliğinden değiştirilmez; yeni sayfa hazırlamak veya
 silmek kullanıcı eylemi gerektirir. İkon hatası seçimleri sıfırlamaz.
 
-Önerilen sayfa mevcut `RuneService` veri paketinden salt okunur gösterilir;
-bir presete kopyalanabilir. Eksik veya güncel katalogla uyuşmayan öneri belirtilir.
-Canlı meta veya güncel kazanma oranı vaadi yoktur. Editörde kaydetmek League'e
+Öneriler açık League istemcisinden şampiyon + rol + Sihirdar Vadisi (harita 11)
+bağlamıyla alınır. İstemcinin başka şampiyon veya rol için döndürdüğü sayfalar
+reddedilir; kalanlar güncel rün kataloğuyla doğrulanır. Otomasyon ilk geçerli
+öneriyi kullanır. Diğerleri salt okunur önizlenip mevcut üç presetten birine
+kopyalanabilir. `GET /champions/{id}/runes/recommended/{role}` rolü zorunlu tutar;
+eski rolsüz uç nokta yalnız `role_required` döndürür. Bağlantı hatası ile role
+uygun önerinin bulunmaması ayrı gösterilir; Yenile yeniden sorgular. Selenium,
+OP.GG kazıyıcısı ve paketlenmiş `runes.json` kaldırıldı; web veya JSON yedeği yoktur.
+Kazanma oranı veya yama güncelliği vaadi yoktur. Editörde kaydetmek League'e
 hemen sayfa yazmaz; oyun içi uygulama mevcut otomasyonun şampiyon seçimi akışındadır.
 
 Kayıt düğmesinin simgesi ve metni ayrı, sabit kapsayıcılarda tutulur. Tarayıcı

@@ -10,7 +10,7 @@ export function RuneAlert({ health }: { health?: Health }) {
   const role = roles.find((item) => item.key === notice.role)?.name ?? 'Rol bilgisi yok'
   return <aside className="error-banner rune-notice" role="alert" aria-label="Rün uygulama bildirimi">
     <strong>{notice.code === 'rune_fallback' ? 'Kayıtlı preset kullanılamadı; önerilen rünlere dönüldü.' : 'Rünler uygulanamadı; League istemcisindeki rünlerini kontrol et.'}</strong>
-    <p>{role} · Şampiyon #{notice.champion_id}. {notice.code === 'rune_fallback' ? 'Önerilen sayfa veri paketinden gelir.' : 'Kullanılabilir sayfa bulunamadı. Mevcut istemci rünleri korunuyor.'}</p>
+    <p>{role} · Şampiyon #{notice.champion_id}. {notice.code === 'rune_fallback' ? 'League istemcisinin bu şampiyon ve role uygun ilk geçerli önerisi uygulandı.' : 'Kullanılabilir sayfa bulunamadı. Mevcut istemci rünleri korunuyor.'}</p>
     {!health && <p>Bağlantı doğrulanamıyor; son rün uyarısı korunuyor.</p>}
   </aside>
 }

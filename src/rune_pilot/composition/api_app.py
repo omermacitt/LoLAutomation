@@ -19,7 +19,6 @@ from rune_pilot.application.game_query_service import GameQueryService
 from rune_pilot.application.lobby_service import LobbyService
 from rune_pilot.application.perk_query import PerkQuery
 from rune_pilot.application.ports.league_client import LeagueClient
-from rune_pilot.application.ports.rune_data import RuneDataSource
 from rune_pilot.application.rune_editor_service import RuneEditorService
 from rune_pilot.application.rune_service import RuneService
 from rune_pilot.application.skin_artwork_query import SkinArtworkQuery
@@ -31,7 +30,6 @@ from rune_pilot.domain.rune_editor import RunePage
 from rune_pilot.infrastructure.config_repository import ConfigRepository
 from rune_pilot.infrastructure.github_updates import GithubUpdateSource
 from rune_pilot.infrastructure.league_client_adapter import LcuLeagueClient
-from rune_pilot.infrastructure.rune_data_provider import JsonRuneData
 from rune_pilot.shared.app_meta import UPDATE_REPO_DEFAULT, __version__
 
 
@@ -40,7 +38,6 @@ def create_app(
     config_service: ConfigService | None = None,
     game_queries: GameQueryService | None = None,
     league_client: LeagueClient | None = None,
-    rune_source: RuneDataSource | None = None,
     update_service: UpdateService | None = None,
 ) -> FastAPI:
     """
@@ -69,12 +66,11 @@ def create_app(
 
     application = FastAPI(title="RunePilot API", lifespan=lifespan)
     client = league_client if league_client is not None else LcuLeagueClient()
-    source = rune_source if rune_source is not None else JsonRuneData()
     champions = ChampionQuery(client)
     perks = PerkQuery(client)
     skins = SkinQuery(client)
     lobby = LobbyService(client, champions)
-    runes = RuneService(source, champions)
+    runes = RuneService(client)
     application.state.champions = champions
     application.state.champion_portraits = ChampionPortraitQuery(client)
     application.state.skin_artwork = SkinArtworkQuery(client)
@@ -110,7 +106,7 @@ def create_app(
         )
     )
     application.state.rune_editor = RuneEditorService(
-        application.state.game_queries, runes.get_recommended_page_for_champion
+        application.state.game_queries, runes.get_recommended_pages
     )
     runner = AutomationRunner(
         client,

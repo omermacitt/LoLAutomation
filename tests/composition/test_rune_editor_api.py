@@ -60,7 +60,12 @@ def service(metadata, recommendation=None):
         perks=lambda: perks,
         perk_icon=lambda path: b"png",
     )
-    return RuneEditorService(queries, lambda cid: recommendation), queries
+    return (
+        RuneEditorService(
+            queries, lambda cid, role: [recommendation] if recommendation is not None else []
+        ),
+        queries,
+    )
 
 
 def client_for(metadata, recommendation=None):
@@ -141,11 +146,14 @@ def test_recommendation_explicitly_reports_source_and_unavailable_data(metadata,
     if state == "outdated":
         recommendation["selectedPerkIds"][0] = 999999
     with client_for(metadata, recommendation) as client:
-        response = client.get("/champions/266/runes/recommended")
+        response = client.get("/champions/266/runes/recommended/TOP")
     assert response.status_code == 200
     data = response.json()
     assert data["champion_id"] == 266
-    assert data["source"] == "bundled"
+    assert data["role"] == "TOP"
+    assert data["map_id"] == 11
+    assert data["options"] == ([data["page"]] if data["page"] else [])
+    assert data["source"] == "league"
     assert data["unavailableReason"] == (None if state == "valid" else state)
     assert bool(data["page"]) == (state == "valid")
 
@@ -154,3 +162,72 @@ def test_incomplete_metadata_fails_without_inventing_defaults(metadata):
     metadata[0][0]["slots"].pop()
     with client_for(metadata) as client:
         assert client.get("/runes/editor-catalog").status_code == 503
+
+
+def test_role_is_required_and_invalid_roles_are_rejected_without_recommendation_reads(metadata):
+    from unittest.mock import Mock
+
+    editor, queries = service(metadata)
+    read = Mock(return_value=[])
+    editor._recommended = read
+    app = create_app(game_queries=queries)
+    app.state.rune_editor = editor
+    with TestClient(app) as client:
+        assert (
+            client.get("/champions/106/runes/recommended").json()["unavailableReason"]
+            == "role_required"
+        )
+        for role in ("FILL", "middle", "SUPPORT"):
+            assert client.get(f"/champions/106/runes/recommended/{role}").status_code == 422
+    read.assert_not_called()
+
+
+def test_catalog_invalid_first_option_is_skipped_and_valid_options_keep_client_order(
+    metadata, page
+):
+    editor, _ = service(metadata)
+    invalid = {**page, "selectedPerkIds": [999999] * 9}
+    alternative = {**page, "selectedPerkIds": [8002, *page["selectedPerkIds"][1:]]}
+    editor._recommended = lambda cid, role: [invalid, page, alternative, page]
+    result = editor.recommendation(106, "JUNGLE")
+    assert result.page.model_dump() == page
+    assert [option.model_dump() for option in result.options] == [page, alternative]
+    assert result.unavailableReason is None
+
+
+def test_http_role_query_uses_injected_league_get_and_current_catalog_without_game_writes(
+    metadata, page
+):
+    from unittest.mock import Mock
+
+    from rune_pilot.infrastructure.league_client_adapter import LcuLeagueClient
+
+    _, queries = service(metadata)
+    base = {
+        "recommendationChampionId": 106,
+        "position": "JUNGLE",
+        "primaryPerkStyleId": page["primaryStyleId"],
+        "secondaryPerkStyleId": page["subStyleId"],
+        "perks": [{"id": value} for value in page["selectedPerkIds"]],
+        "summonerSpellIds": [4, 14],
+    }
+    request = Mock()
+    request.return_value.status_code = 200
+    request.return_value.json.return_value = [
+        {**base, "position": "TOP"},
+        base,
+        {**base, "recommendationChampionId": 1},
+    ]
+    app = create_app(league_client=LcuLeagueClient(request), game_queries=queries)
+    with TestClient(app) as client:
+        response = client.get("/champions/106/runes/recommended/JUNGLE")
+        assert response.status_code == 200
+        assert response.headers["cache-control"] == "no-store"
+        result = response.json()
+        assert result["role"] == "JUNGLE"
+        assert len(result["options"]) == 1
+        assert result["page"]["selectedPerkIds"] == page["selectedPerkIds"]
+        assert "summonerSpellIds" not in result["page"]
+    request.assert_called_once_with(
+        "GET", "/lol-perks/v1/recommended-pages/champion/106/position/JUNGLE/map/11"
+    )

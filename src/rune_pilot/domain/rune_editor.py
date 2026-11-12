@@ -36,9 +36,12 @@ class RunePage(BaseModel):
 
 class RuneRecommendation(BaseModel):
     champion_id: int
-    source: Literal["bundled"] = "bundled"
+    role: Literal["TOP", "JUNGLE", "MIDDLE", "BOTTOM", "UTILITY"] | None = None
+    map_id: Literal[11] = 11
+    source: Literal["league"] = "league"
     page: RunePage | None = None
-    unavailableReason: Literal["missing", "outdated"] | None = None
+    options: list[RunePage] = Field(default_factory=list)
+    unavailableReason: Literal["missing", "outdated", "role_required"] | None = None
 
 
 class _PlainText(HTMLParser):

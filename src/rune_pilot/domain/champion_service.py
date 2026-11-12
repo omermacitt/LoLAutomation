@@ -43,7 +43,7 @@ def is_mode_champion_variant(champion: dict[str, Any]) -> bool:
 
 def champion_slug_from_alias(alias: str) -> str:
     """
-    Must match the slug format used when generating runes.json (see webscrapping.py).
+    Retains legacy champion alias normalization for compatibility.
     """
     alias = (alias or "").strip()
     special = {

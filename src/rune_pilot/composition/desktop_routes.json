@@ -9,6 +9,7 @@
   {"method":"GET","pattern":"/runes/editor-catalog","image":false},
   {"method":"POST","pattern":"/runes/validate","image":false},
   {"method":"GET","pattern":"/champions/[1-9][0-9]*/runes/recommended","image":false},
+  {"method":"GET","pattern":"/champions/[1-9][0-9]*/runes/recommended/(TOP|JUNGLE|MIDDLE|BOTTOM|UTILITY)","image":false},
   {"method":"GET","pattern":"/champions/[1-9][0-9]*/skins","image":false},
   {"method":"GET","pattern":"/champions/[1-9][0-9]*/portrait","image":true},
   {"method":"GET","pattern":"/champions/[1-9][0-9]*/skins/[1-9][0-9]*/artwork","image":true},

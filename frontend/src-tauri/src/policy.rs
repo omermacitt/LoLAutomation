@@ -42,6 +42,26 @@ mod tests {
         assert!(!allowed("PUT", "/settings", true));
         assert!(allowed("GET", "/champions/266/portrait", true));
         assert!(allowed("GET", "/champions/266/skins/266001/artwork", true));
+        assert!(allowed(
+            "GET",
+            "/champions/106/runes/recommended/JUNGLE",
+            false
+        ));
+        assert!(allowed(
+            "GET",
+            "/champions/106/runes/recommended/UTILITY",
+            false
+        ));
+        assert!(!allowed(
+            "GET",
+            "/champions/106/runes/recommended/JUNGLE",
+            true
+        ));
+        assert!(!allowed(
+            "POST",
+            "/champions/106/runes/recommended/JUNGLE",
+            false
+        ));
         for path in [
             "/accounts",
             "/login-jobs/active",
@@ -52,6 +72,9 @@ mod tests {
             "/%68ealth",
             "/health?x=1",
             "/champions/0/portrait",
+            "/champions/106/runes/recommended/jungle",
+            "/champions/106/runes/recommended/TOP?map=12",
+            "/champions/106/runes/recommended/FILL",
         ] {
             assert!(!allowed("GET", path, false), "{path}");
         }
