@@ -1,0 +1,117 @@
+{
+  "owner": "Riot Games",
+  "source": "Data Dragon",
+  "version": "16.22.1",
+  "metadata_url": "https://ddragon.leagueoflegends.com/cdn/16.22.1/data/tr_TR/summoner.json",
+  "retrieved": "2026-11-11",
+  "files": [
+    {
+      "id": 1,
+      "riot_key": "SummonerBoost",
+      "name": "Arındır",
+      "file": "1.png",
+      "url": "https://ddragon.leagueoflegends.com/cdn/16.22.1/img/spell/SummonerBoost.png",
+      "sha256": "9498d4983effb29f0c11a0fa605f39f6381f9708150a111cb2156b0287c80702",
+      "dimensions": [
+        64,
+        64
+      ]
+    },
+    {
+      "id": 3,
+      "riot_key": "SummonerExhaust",
+      "name": "Bitkinlik",
+      "file": "3.png",
+      "url": "https://ddragon.leagueoflegends.com/cdn/16.22.1/img/spell/SummonerExhaust.png",
+      "sha256": "ad513e510391d7c8fc604d16e239f430f1a10dde563ae7cf237eb87b1f0de722",
+      "dimensions": [
+        64,
+        64
+      ]
+    },
+    {
+      "id": 4,
+      "riot_key": "SummonerFlash",
+      "name": "Sıçra",
+      "file": "4.png",
+      "url": "https://ddragon.leagueoflegends.com/cdn/16.22.1/img/spell/SummonerFlash.png",
+      "sha256": "1272fe7b3275c0afc872a6aaa6b65e27d41572d57f9ce19b9ed81b79aa5eb2aa",
+      "dimensions": [
+        64,
+        64
+      ]
+    },
+    {
+      "id": 6,
+      "riot_key": "SummonerHaste",
+      "name": "Hayalet",
+      "file": "6.png",
+      "url": "https://ddragon.leagueoflegends.com/cdn/16.22.1/img/spell/SummonerHaste.png",
+      "sha256": "9ce3605a1480f16453ff8230fa61e87cedca91e8a5c6217445c82eaf53884484",
+      "dimensions": [
+        64,
+        64
+      ]
+    },
+    {
+      "id": 7,
+      "riot_key": "SummonerHeal",
+      "name": "Şifa",
+      "file": "7.png",
+      "url": "https://ddragon.leagueoflegends.com/cdn/16.22.1/img/spell/SummonerHeal.png",
+      "sha256": "ccebc4b0554572a041b2b5014f25a84d7265c371e97448a516765aaad651dc55",
+      "dimensions": [
+        64,
+        64
+      ]
+    },
+    {
+      "id": 11,
+      "riot_key": "SummonerSmite",
+      "name": "Çarp",
+      "file": "11.png",
+      "url": "https://ddragon.leagueoflegends.com/cdn/16.22.1/img/spell/SummonerSmite.png",
+      "sha256": "f07e92e0ded6fae182b1d66191a62dcaf5fcf207a0d9622105e00c39c27a0a28",
+      "dimensions": [
+        64,
+        64
+      ]
+    },
+    {
+      "id": 12,
+      "riot_key": "SummonerTeleport",
+      "name": "Işınlan",
+      "file": "12.png",
+      "url": "https://ddragon.leagueoflegends.com/cdn/16.22.1/img/spell/SummonerTeleport.png",
+      "sha256": "9b86d0c879504d7ad22815084efb0c59521a40edf5bc6bf85031db9f5e2e976f",
+      "dimensions": [
+        64,
+        64
+      ]
+    },
+    {
+      "id": 14,
+      "riot_key": "SummonerDot",
+      "name": "Tutuştur",
+      "file": "14.png",
+      "url": "https://ddragon.leagueoflegends.com/cdn/16.22.1/img/spell/SummonerDot.png",
+      "sha256": "958db3407c83a9499a5e464c2e37df59c6544590dcd3d822965a83740303b9af",
+      "dimensions": [
+        64,
+        64
+      ]
+    },
+    {
+      "id": 21,
+      "riot_key": "SummonerBarrier",
+      "name": "Bariyer",
+      "file": "21.png",
+      "url": "https://ddragon.leagueoflegends.com/cdn/16.22.1/img/spell/SummonerBarrier.png",
+      "sha256": "a0cf7b08cdd6d852d325bc9124e05f0e2c55aac340e50665c385755dfa86fbc0",
+      "dimensions": [
+        64,
+        64
+      ]
+    }
+  ]
+}
