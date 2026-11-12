@@ -19,7 +19,6 @@ dependencies = [
 [project.optional-dependencies]
 dev = [
     "pyinstaller",
-    "selenium",
     "pytest",
     "httpx",
     "ruff",

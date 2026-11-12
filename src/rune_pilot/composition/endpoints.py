@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Literal
+
 from fastapi import Depends, FastAPI, Header, HTTPException, Path, Request, Response
 
 from rune_pilot.application.automation_service import AutomationService
@@ -127,6 +129,16 @@ def register_routes(app: FastAPI) -> None:
         champion_id: int = Path(gt=0), service: RuneEditorService = Depends(get_rune_editor)
     ):
         return service.recommendation(champion_id)
+
+    @app.get("/champions/{champion_id}/runes/recommended/{role}", response_model=RuneRecommendation)
+    def role_recommended_runes(
+        response: Response,
+        role: Literal["TOP", "JUNGLE", "MIDDLE", "BOTTOM", "UTILITY"],
+        champion_id: int = Path(gt=0),
+        service: RuneEditorService = Depends(get_rune_editor),
+    ):
+        response.headers["Cache-Control"] = "no-store"
+        return service.recommendation(champion_id, role)
 
     @app.post("/runes/validate", response_model=RunePage)
     def validate_runes(page: RunePage, service: RuneEditorService = Depends(get_rune_editor)):

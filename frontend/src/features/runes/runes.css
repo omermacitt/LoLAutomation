@@ -131,3 +131,6 @@
   .rune-tree header > span { font-size: 9px; }
   .rune-choice__tooltip { width: 170px; }
 }
+.rune-page-toolbar select { min-height: 22px; height: 22px; padding: 1px 7px; font-size: 11px; }
+.rune-page-toolbar:has(select) { padding-block: 5px; }
+.rune-page-toolbar label > span { white-space: nowrap; }

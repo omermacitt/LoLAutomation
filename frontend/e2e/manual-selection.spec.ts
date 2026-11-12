@@ -18,7 +18,7 @@ test('manual selection warning stays visible across pages, survives blocked audi
     }
     if (path.endsWith('/portrait') || path.includes('/runes/icons/')) return route.fulfill({ status: 404, body: '' })
     if (path === '/api/runes/editor-catalog') return route.fulfill({ json: runeCatalog })
-    if (path.endsWith('/runes/recommended')) return route.fulfill({ json: { champion_id: Number(path.split('/')[3]), source: 'bundled', page: runePage, unavailableReason: null } })
+    if (path.includes('/runes/recommended/')) return route.fulfill({ json: { champion_id: Number(path.split('/')[3]), source: 'league', role: path.split('/').at(-1), map_id: 11, page: runePage, options: [runePage], unavailableReason: null } })
     if (path.endsWith('/skins')) {
       const id = Number(path.split('/')[3])
       return route.fulfill({ json: { champion_id: id, skins: [{ id: id * 1000, name: 'Default' }] } })

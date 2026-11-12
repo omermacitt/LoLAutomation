@@ -22,9 +22,9 @@ async function mockRunes(page: Page, editorCatalog = runeCatalog, configure?: (i
     if (path === '/api/session') return route.fulfill({ json: { token: 'development-session-token-12345' } })
     if (path === '/api/champion-catalog') return route.fulfill({ json: roster })
     if (path === '/api/runes/editor-catalog') return route.fulfill({ status: state.failCatalog ? 503 : 200, json: editorCatalog })
-    if (path.endsWith('/runes/recommended')) {
+    if (path.includes('/runes/recommended/')) {
       const id = Number(path.split('/')[3])
-      return route.fulfill({ json: { champion_id: id, source: 'bundled', page: state.recommendation === 'valid' ? { ...runePage, name: 'Recommended' } : null,
+      return route.fulfill({ json: { champion_id: id, source: 'league', role: path.split('/').at(-1), map_id: 11, options: state.recommendation === 'valid' ? [{ ...runePage, name: 'Recommended' }] : [], page: state.recommendation === 'valid' ? { ...runePage, name: 'Recommended' } : null,
         unavailableReason: state.recommendation === 'valid' ? null : state.recommendation } })
     }
     if (path === '/api/runes/validate') {
@@ -59,6 +59,79 @@ const withRoleRunes = (initial: Settings, roster: ChampionCatalog) => {
   initial.role_rune_selection = { TOP: { '106': 1 }, MIDDLE: { '106': 2 } }
 }
 
+test('League role suggestions can be previewed and copied; only the first is automatic', async ({ page }, info) => {
+  const state = await mockRunes(page)
+  const alternative = { ...runePage, name: 'League', selectedPerkIds: [8002, ...runePage.selectedPerkIds.slice(1)] }
+  await page.route('**/api/champions/266/runes/recommended/TOP', (route) => route.fulfill({ json: {
+    champion_id: 266, role: 'TOP', map_id: 11, source: 'league', page: runePage,
+    options: [runePage, alternative], unavailableReason: null,
+  } }))
+  await page.getByRole('button', { name: 'Rünleri yenile', exact: true }).click()
+  await expect(page.getByLabel('League rün önerisi')).toBeVisible()
+  await page.screenshot({ path: info.outputPath('league-first-before-actions.png'), fullPage: true })
+  await info.attach('recommended-layout.json', { body: JSON.stringify(await page.locator('.rune-page-toolbar, .rune-page-toolbar > div, .rune-trees, .rune-editor-actions, .rune-save-note, .draft-footer').evaluateAll((nodes) => nodes.map((node) => ({ class: node.className, width: node.getBoundingClientRect().width, y: node.getBoundingClientRect().y, height: node.getBoundingClientRect().height })))), contentType: 'application/json' })
+  if (info.project.name !== 'mobile-width') await expect(page.getByRole('button', { name: 'Kaydet ve oturumu bitir' })).toBeInViewport({ ratio: 1 })
+  await page.getByLabel('League rün önerisi').selectOption('1')
+  if (info.project.name !== 'mobile-width') {
+    await expect(page.getByRole('button', { name: 'Kaydet ve oturumu bitir' })).toBeInViewport({ ratio: 1 })
+    await expect(page.getByRole('button', { name: 'Düzenlemek için kopyala', exact: true })).toBeInViewport({ ratio: 1 })
+  }
+  await expect(page.getByRole('button', { name: 'Önerileni kullan', exact: true })).toBeDisabled()
+  await expect(page.getByRole('button', { name: 'Düzenlemek için kopyala', exact: true })).toBeEnabled()
+  await expect(page.locator('.rune-page-toolbar').getByText('League istemcisi', { exact: false })).toBeVisible()
+  expect(state.writes).toBe(0)
+  await page.screenshot({ path: info.outputPath('league-rune-options.png'), fullPage: true })
+  await page.getByRole('button', { name: 'Düzenlemek için kopyala', exact: true }).click()
+  await page.getByRole('button', { name: 'Preseti kaydet', exact: true }).click()
+  await expect.poll(() => state.saved.role_rune_selection.TOP?.['266']).toBe(1)
+  expect((state.saved.custom_runes['266'] as Record<string, RunePage>)['1'].selectedPerkIds).toEqual(alternative.selectedPerkIds)
+})
+
+test('late recommendations for an abandoned role never replace the current empty result', async ({ page }) => {
+  const state = await mockRunes(page)
+  const pending = deferred<void>()
+  let waiting = false
+  await page.route('**/api/champions/266/runes/recommended/*', async (route) => {
+    const role = new URL(route.request().url()).pathname.split('/').at(-1)
+    if (role === 'TOP') { waiting = true; await pending.promise }
+    return route.fulfill({ json: { champion_id: 266, role, map_id: 11, source: 'league',
+      page: role === 'TOP' ? runePage : null, options: role === 'TOP' ? [runePage] : [], unavailableReason: role === 'TOP' ? null : 'missing' } })
+  })
+  await page.getByRole('button', { name: 'Rünleri yenile', exact: true }).click()
+  await expect.poll(() => waiting).toBe(true)
+  await page.getByRole('combobox', { name: 'Rün rolü', exact: true }).selectOption('MIDDLE')
+  await expect(page.getByText('Bu şampiyon ve rol için öneri yok', { exact: true })).toBeVisible()
+  pending.resolve()
+  await expect(page.getByLabel('League rün önerisi')).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Önerileni kullan', exact: true })).toBeDisabled()
+  expect(state.writes).toBe(0)
+})
+
+test('recommendation connection errors remain distinct from no matching role and can be retried', async ({ page }) => {
+  const state = await mockRunes(page)
+  let unavailable = true
+  await page.route('**/api/champions/266/runes/recommended/TOP', (route) => route.fulfill({ status: unavailable ? 503 : 200, json: {
+    champion_id: 266, role: 'TOP', map_id: 11, source: 'league', page: runePage, options: [runePage], unavailableReason: null,
+  } }))
+  await page.getByRole('button', { name: 'Rünleri yenile', exact: true }).click()
+  await expect(page.getByText('Öneriler yüklenemedi', { exact: true })).toBeVisible()
+  await expect(page.getByText('Bu şampiyon ve rol için öneri yok', { exact: true })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Önerileni kullan', exact: true })).toBeDisabled()
+  unavailable = false
+  await page.getByRole('button', { name: 'Rünleri yenile', exact: true }).click()
+  await expect(page.getByLabel('League rün önerisi')).toBeVisible()
+  expect(state.writes).toBe(0)
+})
+
+test('fallback notice names the client and role source', async ({ page }) => {
+  await mockRunes(page)
+  await page.route('**/api/health', (route) => route.fulfill({ json: { ...health, running: true,
+    rune_notice: { id: 3, code: 'rune_fallback', role: 'JUNGLE', champion_id: 106 } } }))
+  const notice = page.getByRole('alert', { name: 'Rün uygulama bildirimi' })
+  await expect(notice).toContainText('League istemcisinin bu şampiyon ve role uygun ilk geçerli önerisi uygulandı.')
+  await expect(notice).not.toContainText('veri paketi')
+})
+
 test('role rune assignments stay independent and preserve explicit recommendation, inheritance and shared deletion', async ({ page }, info) => {
   const state = await mockRunes(page, runeCatalog, withRoleRunes)
   await page.getByRole('combobox', { name: 'Rün şampiyonu' }).selectOption('106')
@@ -77,7 +150,7 @@ test('role rune assignments stay independent and preserve explicit recommendatio
   await expect(page.getByLabel('Aktif rün ataması')).toContainText('Varsayılandan: Preset 1')
   await page.getByRole('button', { name: 'Rün Preset 2', exact: true }).click()
   await page.getByRole('button', { name: 'Bu preseti kullan', exact: true }).click()
-  await expect.poll(() => state.saved.role_rune_selection.MIDDLE['106']).toBe(2)
+  await expect.poll(() => state.saved.role_rune_selection.MIDDLE?.['106']).toBe(2)
   await page.getByRole('combobox', { name: 'Rün rolü' }).selectOption('TOP')
   await expect(page.getByRole('textbox', { name: 'Rün preset adı' })).toHaveValue('Top page')
   await page.getByRole('button', { name: 'Rün Preset 2', exact: true }).click()

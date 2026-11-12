@@ -21,8 +21,8 @@ class _FakeResp:
 
 
 # --- resource_path ------------------------------------------------------------
-def test_resource_path_resolves_bundled_runes_json():
-    path = resource_path("runes.json")
+def test_resource_path_resolves_desktop_route_policy():
+    path = resource_path("src/rune_pilot/composition/desktop_routes.json")
     assert os.path.isabs(path)
     assert os.path.exists(path)  # proje kökü doğru hesaplanmalı
 

@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test'
 import type { Page } from '@playwright/test'
 import { catalog, health, settings } from '../src/test/fixtures'
+import { runeCatalog, runePage } from '../src/test/runeFixtures'
 import type { Settings } from '../src/api/contracts'
 
 type TestState = { saved: Settings; running: boolean; downloads: number; installs: number; starts: number; stops: number; order: string[]; holdDownload: boolean; failSave: boolean; failCheck: boolean; offer: boolean; resolveDownload?: () => void }
@@ -10,7 +11,7 @@ test.afterEach(({ page }) => { expect(pageErrors.get(page)).toEqual([]) })
 async function nativeApp(page: Page, offer = true) {
   // All native commands and game reads/writes terminate in this in-page fake.
   // No actual native process, installer, user profile or League endpoint exists.
-  await page.addInitScript(({ initial, roster, initialHealth, hasOffer }) => {
+  await page.addInitScript(({ initial, roster, initialHealth, hasOffer, editorCatalog, recommendedPage }) => {
     const state: TestState = { saved: initial, running: true, downloads: 0, installs: 0, starts: 0, stops: 0, order: [], holdDownload: false, failSave: false, failCheck: false, offer: hasOffer }
     let revision = 1; let callbackId = 0
     const callbacks = new Map<number, (value: unknown) => void>()
@@ -52,6 +53,9 @@ async function nativeApp(page: Page, offer = true) {
             if (status === 200) value = state.saved
             headers.etag = `"${revision}"`
           } else if (request.path === '/stop_automation') { state.stops++; state.running = false; state.order.push('stop'); value = { status: 'stopped' } }
+          else if (request.path === '/runes/editor-catalog') value = editorCatalog
+          else if (/^\/champions\/[1-9]\d*\/runes\/recommended\/(TOP|JUNGLE|MIDDLE|BOTTOM|UTILITY)$/.test(request.path)) value = { champion_id: Number(request.path.split('/')[2]), role: request.path.split('/').at(-1), map_id: 11, source: 'league', page: recommendedPage, options: [recommendedPage], unavailableReason: null }
+          else if (request.path === '/runes/validate') value = JSON.parse(request.body!)
           else if (request.path === '/automation/config') value = { status: 'updated', config: JSON.parse(request.body!) }
           else if (request.path === '/start_automation') { state.starts++; throw new Error('Unexpected Start') }
           else throw new Error(`Unexpected game command: ${request.method} ${request.path}`)
@@ -59,7 +63,7 @@ async function nativeApp(page: Page, offer = true) {
         },
       },
     })
-  }, { initial: structuredClone(settings), roster: catalog, initialHealth: health, hasOffer: offer })
+  }, { initial: structuredClone(settings), roster: catalog, initialHealth: health, hasOffer: offer, editorCatalog: runeCatalog, recommendedPage: runePage })
   await page.route('http://runepilot.localhost/**', (route) => route.fulfill({ status: 404, body: '' }))
   await page.route(/^http:\/\/127\.0\.0\.1:5173\/api\//, (route) => route.abort('blockedbyclient'))
   await page.goto('/')
@@ -116,4 +120,46 @@ test('a failed recheck never claims that the installed version is current', asyn
   await expect(panel.getByRole('status')).toHaveText('Güncelleme tamamlanamadı.')
   await expect(panel.getByRole('alert')).toContainText('kontrol edilemedi')
   expect((await readState(page)).installs).toBe(0)
+})
+
+test('a rune draft created during download blocks installation until that role preset is saved', async ({ page }, info) => {
+  await nativeApp(page)
+  await page.evaluate(() => { (window as unknown as { __runepilotUpdateTest: TestState }).__runepilotUpdateTest.holdDownload = true })
+  const panel = page.getByRole('region', { name: 'Uygulama güncellemesi' })
+  await panel.getByRole('button', { name: 'Güncelle', exact: true }).click()
+  await page.getByRole('button', { name: 'Rünler', exact: true }).click()
+  await page.getByRole('button', { name: 'Rün Preset 1', exact: true }).click()
+  await page.getByRole('textbox', { name: 'Rün preset adı', exact: true }).fill('Download edit')
+  await expect(page.getByRole('button', { name: 'Rün Preset 1', exact: true }).getByText('Kaydedilmemiş', { exact: true })).toBeVisible()
+  await page.evaluate(() => { (window as unknown as { __runepilotUpdateTest: TestState }).__runepilotUpdateTest.resolveDownload?.() })
+  await expect(panel.getByRole('alert')).toContainText('Güncelleme başlamadı')
+  const blocked = await readState(page)
+  expect(blocked.stops).toBe(0); expect(blocked.installs).toBe(0); expect(blocked.starts).toBe(0)
+  await expect(page.getByRole('textbox', { name: 'Rün preset adı', exact: true })).toHaveValue('Download edit')
+  await page.screenshot({ path: info.outputPath('update-preserves-rune-draft.png'), fullPage: true })
+  await page.getByRole('button', { name: 'Preseti kaydet', exact: true }).click()
+  await expect.poll(async () => (await readState(page)).saved.role_rune_selection.TOP?.['266']).toBe(1)
+  await expect(page.getByRole('button', { name: 'Rün Preset 1', exact: true }).getByText('Kaydedilmiş', { exact: true })).toBeVisible()
+  await panel.getByRole('button', { name: 'Güncelle', exact: true }).click()
+  await expect.poll(async () => (await readState(page)).installs).toBe(1)
+  const finished = await readState(page)
+  expect(finished.downloads).toBe(1); expect(finished.stops).toBe(1); expect(finished.starts).toBe(0)
+  expect(finished.saved.custom_summoner_spells).toEqual(settings.custom_summoner_spells)
+  expect(finished.order.slice(-2)).toEqual(['stop', 'install'])
+})
+
+test('an open spell picker closes when update preparation holds the edit gate', async ({ page }) => {
+  await nativeApp(page)
+  await page.evaluate(() => { (window as unknown as { __runepilotUpdateTest: TestState }).__runepilotUpdateTest.holdDownload = true })
+  const panel = page.getByRole('region', { name: 'Uygulama güncellemesi' })
+  await panel.getByRole('button', { name: 'Güncelle', exact: true }).click()
+  await page.getByRole('button', { name: 'Birinci büyü: Seçilmedi', exact: true }).click()
+  const picker = page.getByRole('dialog', { name: 'Birinci büyü seçimi', exact: true })
+  await expect(picker).toBeVisible()
+  await page.evaluate(() => { (window as unknown as { __runepilotUpdateTest: TestState }).__runepilotUpdateTest.resolveDownload?.() })
+  await expect.poll(async () => (await readState(page)).installs).toBe(1)
+  await expect(picker).not.toBeVisible()
+  const finished = await readState(page)
+  expect(finished.starts).toBe(0); expect(finished.stops).toBe(1)
+  expect(finished.saved.custom_summoner_spells).toEqual(settings.custom_summoner_spells)
 })

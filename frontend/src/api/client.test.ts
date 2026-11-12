@@ -1,10 +1,24 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { ApiClient } from './client'
 import { catalog, settings } from '../test/fixtures'
+import { runePage } from '../test/runeFixtures'
 
 afterEach(() => vi.useRealTimers())
 
 describe('local API client', () => {
+  it('requests the exact role and rejects another champion, role or map in a successful reply', async () => {
+    const reply = { champion_id: 106, role: 'JUNGLE', map_id: 11, source: 'league', page: runePage, options: [runePage], unavailableReason: null }
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValueOnce(Response.json(reply))
+      .mockResolvedValueOnce(Response.json({ ...reply, role: 'TOP' }))
+      .mockResolvedValueOnce(Response.json({ ...reply, champion_id: 1 }))
+      .mockResolvedValueOnce(Response.json({ ...reply, map_id: 12 }))
+      .mockResolvedValueOnce(Response.json({ ...reply, options: [] }))
+    const api = new ApiClient(fetcher)
+    const signal = new AbortController().signal
+    expect(await api.recommendedRune(106, 'JUNGLE', signal)).toEqual(reply)
+    expect(fetcher.mock.calls[0][0]).toBe('/api/champions/106/runes/recommended/JUNGLE')
+    for (let attempt = 0; attempt < 4; attempt++) await expect(api.recommendedRune(106, 'JUNGLE', signal)).rejects.toThrow()
+  })
   it('uses the same-origin proxy and validates current backend settings', async () => {
     const fetcher = vi.fn<typeof fetch>().mockResolvedValue(Response.json(settings))
     const result = await new ApiClient(fetcher).settings(new AbortController().signal)

@@ -1,20 +1,27 @@
-"""Load recommendation data and champion identity, then apply pure rune rules."""
+"""Read champion/role recommendations from League, without files or web sources."""
 
-from rune_pilot.application.champion_query import ChampionQuery
-from rune_pilot.application.ports.rune_data import RuneDataSource
-from rune_pilot.domain.rune_rules import recommended_page
+from rune_pilot.application.game_query_service import QueryUnavailable
+from rune_pilot.application.ports.league_client import LeagueClient
+from rune_pilot.domain.constants import ROLE_KEYS
+from rune_pilot.domain.league_runes import recommendation_pages
 
 
 class RuneService:
-    def __init__(self, source: RuneDataSource, champions: ChampionQuery):
-        self._source = source
-        self._champions = champions
+    def __init__(self, client: LeagueClient):
+        self._client = client
 
-    def get_recommended_page_for_champion(self, champ_id: int) -> dict | None:
-        data = self._source.get_runes_data()
-        direct = data.get(str(champ_id))
-        direct_format = isinstance(direct, dict) and all(
-            key in direct for key in ("primaryStyleId", "subStyleId", "selectedPerkIds")
-        )
-        slug = None if direct_format else self._champions.get_champion_slug_by_id(champ_id)
-        return recommended_page(champ_id, data, slug)
+    def get_recommended_pages(self, champion_id: int, role: str, map_id: int = 11) -> list[dict]:
+        if role not in ROLE_KEYS or map_id != 11 or champion_id <= 0:
+            return []
+        try:
+            reply = self._client.recommended_runes(champion_id, role, map_id)
+            if reply.status_code != 200:
+                raise ValueError("Unavailable recommendation response")
+            raw = reply.json()
+            if not isinstance(raw, list):
+                raise ValueError("Invalid recommendation response")
+            return recommendation_pages(raw, champion_id, role)
+        except Exception as error:
+            raise QueryUnavailable(
+                "League rune recommendations are unavailable. Retry with the League Client open."
+            ) from error

@@ -68,7 +68,7 @@ class AutomationRunner:
 
         Priority:
         1) User-selected custom preset (if configured)
-        2) Highest win-rate recommendation from runes.json
+        2) First catalog-valid League recommendation for the actual assigned role
         """
         my_cell = session.get("localPlayerCellId")
         my_champ_id = 0
@@ -140,19 +140,22 @@ class AutomationRunner:
                     )
 
             if page_data is None:
-                recommended = self._runes.get_recommended_page_for_champion(my_champ_id)
-                if not recommended:
+                recommendations = (
+                    self._runes.get_recommended_pages(my_champ_id, role)
+                    if cfg.get("queue_id", 400) in (400, 420, 440)
+                    else []
+                )
+                for recommended in recommendations:
+                    try:
+                        page_data = self._validated_page(recommended)
+                        break
+                    except ValueError:
+                        continue
+                if page_data is None:
                     self.feedback.publish_rune(
                         (role, my_champ_id, "unavailable"), "rune_unavailable", role, my_champ_id
                     )
                     print(f"[RUNES] No recommended runes found for championId={my_champ_id}")
-                    return False
-                try:
-                    page_data = self._validated_page(recommended)
-                except ValueError:
-                    self.feedback.publish_rune(
-                        (role, my_champ_id, "unavailable"), "rune_unavailable", role, my_champ_id
-                    )
                     return False
                 used_custom = False
 

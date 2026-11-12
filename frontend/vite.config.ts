@@ -24,7 +24,7 @@ function localApi(): Plugin {
           return
         }
         const allowed = methods[path]
-          ?? (/^\/api\/champions\/[1-9]\d*\/(portrait|runes\/recommended|skins(?:\/[1-9]\d*\/artwork)?)$/.test(path) || /^\/api\/runes\/icons\/[1-9]\d*$/.test(path) ? ['GET'] : undefined)
+          ?? (/^\/api\/champions\/[1-9]\d*\/(portrait|runes\/recommended(?:\/(?:TOP|JUNGLE|MIDDLE|BOTTOM|UTILITY))?|skins(?:\/[1-9]\d*\/artwork)?)$/.test(path) || /^\/api\/runes\/icons\/[1-9]\d*$/.test(path) ? ['GET'] : undefined)
         if (!allowed) { response.writeHead(404).end(); return }
         if (!allowed.includes(request.method ?? '')) { response.writeHead(405, { Allow: allowed.join(', ') }).end(); return }
         if (path === '/api/session') {
@@ -54,7 +54,7 @@ export default defineConfig({
   server: {
     host: '127.0.0.1', port: 5173, strictPort: true,
     proxy: {
-      '^/api/(health|settings|champion-catalog|start_automation|stop_automation|automation/config|champions/[1-9]\\d*/(portrait|runes/recommended|skins(/[1-9]\\d*/artwork)?)|runes/(editor-catalog|validate|icons/[1-9]\\d*))$': {
+      '^/api/(health|settings|champion-catalog|start_automation|stop_automation|automation/config|champions/[1-9]\\d*/(portrait|runes/recommended(/(TOP|JUNGLE|MIDDLE|BOTTOM|UTILITY))?|skins(/[1-9]\\d*/artwork)?)|runes/(editor-catalog|validate|icons/[1-9]\\d*))$': {
         target: 'http://127.0.0.1:8000', rewrite: (path) => path.replace(/^\/api/, ''),
         timeout: 20_000, proxyTimeout: 20_000,
       },

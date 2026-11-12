@@ -55,6 +55,11 @@ Qt veya ayrı geliştirme backend'lerini aynı profile paralel açma.
   tekrar kullanılabilir. Başka bir tercihte kullanılan kart o rol içinde pasiftir
   ve hangi tercihte seçili olduğunu gösterir. Tercihi temizlemek şampiyonu serbest bırakır.
 - Oyun modu, ana/ikincil rol ve her rol/şampiyon için iki farklı büyü.
+- Büyü slotları Riot'un gerçek ikonlarıyla gösterilir; tıklayınca 3×3 seçim
+  alanı açılır. Diğer slotta seçili büyü tekrar seçilemez; **Bu slotu temizle**
+  yalnızca açılan slotu sıfırlar. Büyü adları görünürdür; klavye ve Escape ile
+  seçim/iptal desteklenir. Dokuz ikon uygulamayla paketlenir, internetten
+  indirilmez; görsel yüklenemezse ad ve harf yedeğiyle seçim yapılabilir.
 - Değişiklikler 500 ms bekleyerek birleştirilir ve sırayla kaydedilir. Devam eden
   kaydın yanıtı sonraki düzenlemeyi ezmez. Hata taslağı korur; yeniden deneme veya
   kaydedilmemiş değişiklikleri geri alma mümkündür.
@@ -125,7 +130,8 @@ rol atamasını kaldırıp eski şampiyon seçimini devreye alır. Açık öneri
 bir preset'e dönüşmez. Rün ekranı rol/şampiyon ve aktif seçimin kaynağını gösterir.
 
 Autofill, yedek ve manuel şampiyonda gerçek maç rolü esas alınır. Rol bilgisi yoksa
-eski şampiyon varsayılanı, o da yoksa veri paketindeki öneri kullanılır. Eksik veya
+eski şampiyon varsayılanı özel bir presetse kullanılabilir; rol bilinmeden öneri
+seçilmez. Eksik veya
 geçersiz bir role atanan preset yerine doğrulanmış öneri denenir; kullanılabilir
 öneri veya katalog yoksa rün yazılmaz ve ayrı bir uyarı gösterilir. Bu uyarı manuel
 şampiyon seçimi bildirimini silmez. Otomasyon özel/önerilen sayfayı oyun yazmasından
@@ -137,9 +143,15 @@ editörden kaydet veya geri al. Başarısız kayıt formu korur ve tekrar denene
 Okunamayan eski preset kendiliğinden değiştirilmez; yeni sayfa hazırlamak veya
 silmek kullanıcı eylemi gerektirir. İkon hatası seçimleri sıfırlamaz.
 
-Önerilen sayfa mevcut `RuneService` veri paketinden salt okunur gösterilir;
-bir presete kopyalanabilir. Eksik veya güncel katalogla uyuşmayan öneri belirtilir.
-Canlı meta veya güncel kazanma oranı vaadi yoktur. Editörde kaydetmek League'e
+Öneriler açık League istemcisinden şampiyon + rol + Sihirdar Vadisi (harita 11)
+bağlamıyla alınır. İstemcinin başka şampiyon veya rol için döndürdüğü sayfalar
+reddedilir; kalanlar güncel rün kataloğuyla doğrulanır. Otomasyon ilk geçerli
+öneriyi kullanır. Diğerleri salt okunur önizlenip mevcut üç presetten birine
+kopyalanabilir. `GET /champions/{id}/runes/recommended/{role}` rolü zorunlu tutar;
+eski rolsüz uç nokta yalnız `role_required` döndürür. Bağlantı hatası ile role
+uygun önerinin bulunmaması ayrı gösterilir; Yenile yeniden sorgular. Selenium,
+OP.GG kazıyıcısı ve paketlenmiş `runes.json` kaldırıldı; web veya JSON yedeği yoktur.
+Kazanma oranı veya yama güncelliği vaadi yoktur. Editörde kaydetmek League'e
 hemen sayfa yazmaz; oyun içi uygulama mevcut otomasyonun şampiyon seçimi akışındadır.
 
 Kayıt düğmesinin simgesi ve metni ayrı, sabit kapsayıcılarda tutulur. Tarayıcı
@@ -244,25 +256,8 @@ değiştirmez, giriş yapmaz ve otomasyonu başlatmaz. Şampiyon kontrolü backe
 yoksa atlanır; rün ve kostüm kontrolleri açık League gerektirir.
 Ekran görüntüleri `test-results/` altındadır.
 
-28 Ekim doğrulaması: 46 frontend testi, 63 tarayıcı kontrolü (canlı kontrollerin
-diğer boyutlardaki altı tekrarı atlandı), 350 Python testi ve üretim derlemesi geçti.
-Canlı ayar/ETag, 173 şampiyonluk katalog, gerçek PNG portreleri ve beş rün ağacı doğrulandı.
-Teemo'nun sahip olunan kostümleri ve gerçek JPEG görselleri de profili değiştirmeden doğrulandı.
-1920 piksel pencerede 11 sütun / 33 kart ayrıca kontrol edildi. Oyun komutları
-sahte backend üzerinde sınanmıştır; gerçek oyun içi uygulama doğrulaması ayrıdır.
-
-29 Ekim rün kayıt düzeltmesi: `insertBefore` hatası çevirinin metin düğümlerini
-değiştirmesi taklit edilerek yeniden üretildi. Düğme yapısı düzeltildikten sonra
-48 frontend testi, 67 tarayıcı kontrolü ve üretim derlemesi geçti; canlı veri
-kontrollerinin diğer boyutlardaki sekiz tekrarı atlandı. Profil kopyasında üç
-preset, gerçek katalog doğrulamasıyla kaydedildi; gerçek profil değiştirilmedi.
-
-29 Ekim manuel seçim/UX turu: 360 Python testi, 54 frontend testi, 73 tarayıcı
-kontrolü ve üretim derlemesi geçti; sekiz canlı test tekrarı atlandı. Bağımsız
-UX agent'i Mid/ADC hazırlığı, boş Jungle, sayfalar arası gerçek tıklamalar,
-ses engeli, manuel kilit ve Durdur akışını 1440/390 px'de ayrıca doğruladı.
-Senaryolar ve test sınırları: [UX incelemesi](../docs/qa/ux-scenarios.md).
-Gerçek maçta otomatik seçim/kilit ve fiziksel ses testi yapılmadı.
+Mock testleri gerçek maçta otomatik seçim/kilit veya fiziksel ses doğrulaması
+sayılmaz. Gerçek League kabulü, kullanıcının yönettiği ayrı bir oturumda yapılır.
 
 Grid ölçümü için [ResizeObserver](https://developer.mozilla.org/en-US/docs/Web/API/ResizeObserver)
 kullanılır; yüklenme/boş/hata durumlarında da ölçüm alanı korunur.

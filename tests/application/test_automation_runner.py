@@ -17,6 +17,18 @@ def reply(data=None, status=200, text=""):
     return result
 
 
+def league_page(page, champion_id=1, role="MIDDLE", raw=False):
+    if raw:
+        return {**page, "recommendationChampionId": champion_id, "position": role}
+    return {
+        "recommendationChampionId": champion_id,
+        "position": role,
+        "primaryPerkStyleId": page["primaryStyleId"],
+        "secondaryPerkStyleId": page["subStyleId"],
+        "perks": [{"id": rid} for rid in page["selectedPerkIds"]],
+    }
+
+
 @pytest.fixture
 def setup():
     client = Mock()
@@ -32,13 +44,13 @@ def setup():
     client.delete_rune_page.return_value = reply(status=204)
     client.set_selection.return_value = reply(status=204)
     page = {"primaryStyleId": 8000, "subStyleId": 8100, "selectedPerkIds": list(range(1, 10))}
-    source = Mock()
-    source.get_runes_data.return_value = {"1": page}
+    source = client
+    source.recommended_runes.return_value = reply([league_page(page)])
     champions = ChampionQuery(client)
     sleep = Mock()
     lobby = LobbyService(client, champions, sleep=sleep)
     runner = AutomationRunner(
-        client, champions, RuneService(source, champions), lobby, sleep=sleep, now=lambda: 100.0
+        client, champions, RuneService(client), lobby, sleep=sleep, now=lambda: 100.0
     )
     return client, runner, lobby, source
 
@@ -77,7 +89,7 @@ def test_invalid_role_page_uses_validated_recommendation_and_never_writes_invali
     assert client.create_rune_page.call_args.args[0]["primaryStyleId"] == 8000
     assert runner.feedback.read_rune().code == "rune_fallback"
     client.create_rune_page.reset_mock()
-    source.get_runes_data.return_value = {"1": bad}
+    source.recommended_runes.return_value = reply([league_page(bad)])
     assert not runner.apply_runes(session(), config)
     client.create_rune_page.assert_not_called()
     assert runner.feedback.read_rune().code == "rune_unavailable"
@@ -141,7 +153,7 @@ def test_role_zero_and_missing_preset_do_not_revive_legacy_and_notice_is_separat
     assert runner.apply_runes(session(), config)
     assert client.create_rune_page.call_args.args[0]["primaryStyleId"] == 8000
     client.create_rune_page.reset_mock()
-    source.get_runes_data.return_value = {}
+    source.recommended_runes.return_value = reply([])
     config["role_rune_selection"]["MIDDLE"]["1"] = 2
     runner.feedback.publish(("manual",), "no_preference", "MIDDLE")
     assert not runner.apply_runes(session(), config)
@@ -246,7 +258,7 @@ def test_custom_runes_update_existing_page_without_reading_recommendations(setup
         5,
         {"id": 5, "name": "Custom 2 Annie", **custom, "current": True},
     )
-    source.get_runes_data.assert_not_called()
+    source.recommended_runes.assert_not_called()
     client.create_rune_page.assert_not_called()
 
 
@@ -283,17 +295,86 @@ def test_invalid_custom_preset_falls_back_and_failed_creation_is_not_success(set
         session(),
         {"rune_selection": {"1": 1}, "custom_runes": {"1": {"1": {"selectedPerkIds": [1]}}}},
     )
-    source.get_runes_data.assert_called_once()
+    source.recommended_runes.assert_called_once()
     assert client.create_rune_page.call_args.args[0]["name"] == "Auto Annie"
 
 
 def test_direct_recommendation_does_not_need_lcu_champion_metadata(setup):
     client, runner, _, source = setup
-    champions = ChampionQuery(client)
-    service = RuneService(source, champions)
+    service = RuneService(client)
     client.champion_summary.side_effect = OSError("offline")
-    assert service.get_recommended_page_for_champion(1)["primaryStyleId"] == 8000
+    assert service.get_recommended_pages(1, "MIDDLE")[0]["primaryStyleId"] == 8000
     client.champion_summary.assert_not_called()
+
+
+@pytest.mark.parametrize("role,queue", [("", 400), ("FILL", 400), ("MIDDLE", 450)])
+def test_unknown_role_or_unsupported_queue_never_writes_guessed_recommendations(setup, role, queue):
+    client, runner, _, _ = setup
+    actual = session()
+    actual["myTeam"][0]["assignedPosition"] = role
+    assert not runner.apply_runes(actual, {"queue_id": queue, "primary_role": "TOP"})
+    client.recommended_runes.assert_not_called()
+    client.rune_pages.assert_not_called()
+    client.create_rune_page.assert_not_called()
+    assert runner.feedback.read_rune().code == "rune_unavailable"
+
+
+def test_client_fallback_for_wrong_role_is_not_applied_and_spells_are_untouched(setup):
+    client, runner, _, _ = setup
+    page = {"primaryStyleId": 8000, "subStyleId": 8100, "selectedPerkIds": list(range(1, 10))}
+    client.recommended_runes.return_value = reply(
+        [league_page(page, role="TOP"), league_page(page, champion_id=2)]
+    )
+    assert not runner.apply_runes(session(), {})
+    client.recommended_runes.assert_called_once_with(1, "MIDDLE", 11)
+    client.rune_pages.assert_not_called()
+    client.create_rune_page.assert_not_called()
+    client.set_selection.assert_not_called()
+
+
+def test_stop_during_client_recommendation_read_prevents_any_rune_write(setup):
+    client, runner, _, _ = setup
+    running = True
+    original = client.recommended_runes.return_value
+
+    def read(*args):
+        nonlocal running
+        running = False
+        return original
+
+    client.recommended_runes.side_effect = read
+    assert not runner.apply_runes(session(), {}, should_run=lambda: running)
+    client.create_rune_page.assert_not_called()
+    client.update_rune_page.assert_not_called()
+    client.delete_rune_page.assert_not_called()
+
+
+def test_delayed_role_requeries_same_champion_and_applies_each_actual_role_recommendation(setup):
+    client, runner, _, _ = setup
+    raw = client.recommended_runes.return_value.json.return_value[0]
+    client.recommended_runes.return_value = reply(
+        [
+            {**raw, "position": "TOP", "primaryPerkStyleId": 8200},
+            raw,
+        ]
+    )
+    unknown, top, middle = session(), session(), session()
+    unknown["myTeam"][0]["assignedPosition"] = ""
+    top["myTeam"][0]["assignedPosition"] = "top"
+    client.champ_select_session.side_effect = [
+        reply(unknown),
+        reply(top),
+        reply(middle),
+        reply(middle),
+    ]
+    run_iterations(
+        runner, [AutomationSnapshot(1, {"auto_queue": False, "primary_role": "BOTTOM"})] * 4
+    )
+    assert client.recommended_runes.call_args_list == [call(1, "TOP", 11), call(1, "MIDDLE", 11)]
+    assert [item.args[0]["primaryStyleId"] for item in client.create_rune_page.call_args_list] == [
+        8200,
+        8000,
+    ]
 
 
 def test_same_settings_revision_retries_failed_skin_and_new_revision_reapplies(setup):
@@ -323,7 +404,11 @@ def test_missing_session_resets_progress_for_next_game_and_restart_has_fresh_sta
 
 def test_champion_change_and_nonfinal_phase_reapply_runes(setup):
     client, runner, _, source = setup
-    source.get_runes_data.return_value["2"] = source.get_runes_data.return_value["1"]
+    source.recommended_runes.return_value.json.return_value.append(
+        league_page(
+            source.recommended_runes.return_value.json.return_value[0], champion_id=2, raw=True
+        )
+    )
     other = session()
     other["myTeam"][0]["championId"] = 2
     client.champ_select_session.side_effect = [
@@ -498,7 +583,7 @@ def test_manual_lock_clears_notice_and_applies_actual_champion_customizations(se
     client.complete_action.assert_not_called()
     assert runner.feedback.read() is None
     assert client.create_rune_page.call_args.args[0]["selectedPerkIds"] == custom["selectedPerkIds"]
-    source.get_runes_data.assert_not_called()
+    source.recommended_runes.assert_not_called()
     assert client.set_selection.call_args_list == [
         call({"spell1Id": 4, "spell2Id": 11}),
         call({"selectedSkinId": 2001}),

@@ -56,7 +56,11 @@ export const runeEditorCatalogSchema = z.object({ styles: z.array(z.object({
   id: z.number().int().positive(), name: z.string(), description: z.string(), allowedSubStyles: z.array(z.number().int().positive()),
   rows: z.array(z.array(runeChoiceSchema).min(1)).length(4), shardRows: z.array(z.array(runeChoiceSchema).min(1)).length(3),
 })).min(2) })
-export const runeRecommendationSchema = z.object({ champion_id: z.number().int().positive(), source: z.literal('bundled'), page: runePageSchema.nullable(), unavailableReason: z.enum(['missing', 'outdated']).nullable() })
+export const runeRecommendationSchema = z.object({ champion_id: z.number().int().positive(), role: z.enum(['TOP', 'JUNGLE', 'MIDDLE', 'BOTTOM', 'UTILITY']).nullable(), map_id: z.literal(11), source: z.literal('league'), page: runePageSchema.nullable(), options: z.array(runePageSchema), unavailableReason: z.enum(['missing', 'outdated', 'role_required']).nullable() }).superRefine((value, context) => {
+  if (JSON.stringify(value.page) !== JSON.stringify(value.options[0] ?? null) || (value.page !== null && value.unavailableReason !== null)) {
+    context.addIssue({ code: 'custom', message: 'Inconsistent League rune recommendation' })
+  }
+})
 export type RunePage = z.infer<typeof runePageSchema>
 export type RuneChoice = z.infer<typeof runeChoiceSchema>
 export type RuneEditorCatalog = z.infer<typeof runeEditorCatalogSchema>
@@ -89,7 +93,7 @@ export interface PilotApi {
   update(config: AutomationConfig): Promise<StartResult>
   stop(): Promise<void>
   runeCatalog(signal: AbortSignal): Promise<RuneEditorCatalog>
-  recommendedRune(championId: number, signal: AbortSignal): Promise<RuneRecommendation>
+  recommendedRune(championId: number, role: string, signal: AbortSignal): Promise<RuneRecommendation>
   validateRune(page: RunePage): Promise<RunePage>
   skins(championId: number, signal: AbortSignal): Promise<SkinOptions>
 }

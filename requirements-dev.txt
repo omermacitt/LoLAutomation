@@ -1,5 +1,4 @@
 pyinstaller
-selenium
 pytest
 httpx
 ruff

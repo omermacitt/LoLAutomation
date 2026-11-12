@@ -253,7 +253,7 @@ export function useChampionWorkspace(api: PilotApi) {
   }
   const selectRunePreset = (id: number, slot: 0 | PresetSlot | null, runeRole: RoleKey) => mutateRunes(async () => {
     if (slot === 0) {
-      const recommendation = await api.recommendedRune(id, new AbortController().signal)
+      const recommendation = await api.recommendedRune(id, runeRole, new AbortController().signal)
       if (!recommendation.page) throw new Error('Bu şampiyon için güncel katalogla uyumlu öneri bulunamadı.')
     } else if (slot !== null) {
       const page = preset(writer.getSnapshot().draft, id, slot)

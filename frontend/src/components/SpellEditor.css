@@ -1,0 +1,34 @@
+.spell-editor .spell-slots { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; }
+.spell-slot { min-width: 0; }
+.spell-slot__label { display: block; margin-bottom: 6px; font-size: 9px; color: #b7a3c5; }
+.spell-slot__button { width: 100%; min-height: 80px; display: flex; flex-direction: column; align-items: center; gap: 5px; position: relative; border: 1px solid #4c3a59; border-radius: 9px; background: #211a2b; padding: 9px 7px; color: #dbc9eb; }
+.spell-slot__button > svg { position: absolute; right: 6px; top: 8px; color: #a58bb8; }
+.spell-slot__button:hover:not(:disabled) { background: #30223b; border-color: #a37fbe; }
+.spell-slot__button:disabled { opacity: .45; }
+.spell-slot__name { display: block; width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 10px; text-align: center; }
+.spell-art { display: inline-grid; place-items: center; width: 40px; height: 40px; flex: 0 0 auto; overflow: hidden; border: 1px solid #93754a; border-radius: 7px; background: #100d16; }
+.spell-art > img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.spell-art__fallback { color: #cbb8dc; font-size: 13px; font-weight: 600; }
+.spell-slot__button:has(.spell-art__fallback) .spell-art { border-color: #695575; }
+.spell-picker { position: fixed; inset: 0; margin: auto; width: min(360px, calc(100vw - 32px)); max-height: calc(100dvh - 32px); overflow: auto; box-sizing: border-box; padding: 20px; border: 1px solid #78608e; border-radius: 14px; background: #1b1622; color: #e8deef; box-shadow: 0 18px 70px #000a; }
+.spell-picker::backdrop { background: #09060ec9; }
+.spell-picker__header { display: flex; gap: 12px; justify-content: space-between; align-items: start; margin-bottom: 18px; }
+.spell-picker__header h2 { font-size: 18px; line-height: 1.3; }
+.spell-picker__header p { margin-top: 5px; font-size: 11px; color: #b49fc5; }
+.spell-picker__close { display: grid; place-items: center; width: 32px; height: 32px; flex: 0 0 auto; padding: 0; border: 1px solid #4e3b5c; border-radius: 7px; background: #292032; color: #d2bedf; }
+.spell-picker__grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 9px; }
+.spell-choice { position: relative; display: flex; flex-direction: column; align-items: center; gap: 7px; min-width: 0; min-height: 80px; padding: 9px 4px; border: 1px solid #493653; border-radius: 9px; background: #251c2e; color: #d8c5e6; font-size: 11px; }
+.spell-choice:hover:not(:disabled) { border-color: #bd98d4; background: #362341; }
+.spell-choice--selected { border-color: #d1b374; background: #463b283b; color: #f0ddba; }
+.spell-choice:disabled { opacity: .4; }
+.spell-choice:disabled .spell-art { filter: grayscale(1); }
+.spell-choice__check { position: absolute; top: 5px; right: 5px; color: #edcf91; }
+.spell-picker__hint { min-height: 16px; margin: 13px 0; color: #b7a3c5; font-size: 11px; line-height: 1.5; }
+.spell-picker__footer { display: flex; justify-content: space-between; gap: 9px; padding-top: 13px; border-top: 1px solid #45334f; }
+.spell-picker__footer .button { font-size: 11px; }
+.spell-slot__button:focus-visible, .spell-choice:focus-visible, .spell-picker__close:focus-visible { outline: 2px solid #ceb0e6; outline-offset: 3px; }
+@media (max-width: 480px) {
+  .spell-picker { padding: 16px; }
+  .spell-slot__label { font-size: 10px; }
+  .spell-choice { min-height: 84px; }
+}

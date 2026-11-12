@@ -3,6 +3,7 @@
 from collections.abc import Callable
 
 from rune_pilot.application.ports.league_client import ClientReply
+from rune_pilot.domain.constants import ROLE_KEYS
 from rune_pilot.infrastructure.lcu_client import lcu_request
 
 
@@ -76,6 +77,14 @@ class LcuLeagueClient:
 
     def rune_pages(self) -> ClientReply:
         return self._request("GET", "/lol-perks/v1/pages")
+
+    def recommended_runes(self, champion_id: int, role: str, map_id: int) -> ClientReply:
+        if role not in ROLE_KEYS or champion_id <= 0 or map_id != 11:
+            raise ValueError("Unsupported rune recommendation context")
+        return self._request(
+            "GET",
+            f"/lol-perks/v1/recommended-pages/champion/{int(champion_id)}/position/{role}/map/{map_id}",
+        )
 
     def update_rune_page(self, page_id: int, payload: dict) -> ClientReply:
         return self._request("PUT", f"/lol-perks/v1/pages/{page_id}", payload)
