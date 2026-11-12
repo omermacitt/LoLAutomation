@@ -55,6 +55,11 @@ Qt veya ayrı geliştirme backend'lerini aynı profile paralel açma.
   tekrar kullanılabilir. Başka bir tercihte kullanılan kart o rol içinde pasiftir
   ve hangi tercihte seçili olduğunu gösterir. Tercihi temizlemek şampiyonu serbest bırakır.
 - Oyun modu, ana/ikincil rol ve her rol/şampiyon için iki farklı büyü.
+- Büyü slotları Riot'un gerçek ikonlarıyla gösterilir; tıklayınca 3×3 seçim
+  alanı açılır. Diğer slotta seçili büyü tekrar seçilemez; **Bu slotu temizle**
+  yalnızca açılan slotu sıfırlar. Büyü adları görünürdür; klavye ve Escape ile
+  seçim/iptal desteklenir. Dokuz ikon uygulamayla paketlenir, internetten
+  indirilmez; görsel yüklenemezse ad ve harf yedeğiyle seçim yapılabilir.
 - Değişiklikler 500 ms bekleyerek birleştirilir ve sırayla kaydedilir. Devam eden
   kaydın yanıtı sonraki düzenlemeyi ezmez. Hata taslağı korur; yeniden deneme veya
   kaydedilmemiş değişiklikleri geri alma mümkündür.
