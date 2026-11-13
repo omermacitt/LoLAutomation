@@ -85,6 +85,9 @@ jobs:
           $config.bundle | Add-Member -NotePropertyName resources -NotePropertyValue @{ 'owned-old-code.txt' = 'retired/owned-old-code.txt' }
           [IO.File]::WriteAllText($configPath, ($config | ConvertTo-Json -Depth 20), [Text.UTF8Encoding]::new($false))
           [IO.File]::WriteAllText((Join-Path $previous 'frontend/src-tauri/owned-old-code.txt'), 'retired installed component')
+          # Keep the modified fixture in the canonical format required by its version gate.
+          & "$env:GITHUB_WORKSPACE/.venv/Scripts/python.exe" "$previous/tools/release_version.py" --sync
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
           & "$previous/tools/build_desktop.ps1" -Python "$env:GITHUB_WORKSPACE/.venv/Scripts/python.exe"
           Set-Location -LiteralPath $env:GITHUB_WORKSPACE
       - name: Build signed complete Setup and update manifest
