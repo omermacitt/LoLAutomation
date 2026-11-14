@@ -87,6 +87,28 @@ test('League role suggestions can be previewed and copied; only the first is aut
   expect((state.saved.custom_runes['266'] as Record<string, RunePage>)['1'].selectedPerkIds).toEqual(alternative.selectedPerkIds)
 })
 
+test('same-champion fallback shows the source role and saves to the requested role', async ({ page }) => {
+  const state = await mockRunes(page)
+  const alternative = { ...runePage, selectedPerkIds: [8002, ...runePage.selectedPerkIds.slice(1)] }
+  await page.route('**/api/champions/266/runes/recommended/TOP', (route) => route.fulfill({ json: {
+    champion_id: 266, role: 'TOP', map_id: 11, source: 'league', page: runePage,
+    options: [runePage, alternative], optionRoles: ['UTILITY', 'BOTTOM'], unavailableReason: null,
+  } }))
+  await page.getByRole('button', { name: 'Rünleri yenile', exact: true }).click()
+  await expect(page.getByRole('status').filter({ hasText: 'için özel öneri yok' })).toContainText('Destek önerisini')
+  await expect(page.locator('.rune-page-toolbar')).toContainText('Kaynak: Destek')
+  await page.getByRole('button', { name: 'Önerileni kullan', exact: true }).click()
+  await expect.poll(() => state.saved.role_rune_selection.TOP?.['266']).toBe(0)
+  expect(state.saved.role_rune_selection.UTILITY?.['266']).toBeUndefined()
+  await page.getByLabel('League rün önerisi').selectOption('1')
+  await expect(page.locator('.rune-page-toolbar')).toContainText('Kaynak: Alt koridor')
+  await expect(page.getByRole('button', { name: 'Önerileni kullan', exact: true })).toBeDisabled()
+  await page.getByRole('button', { name: 'Düzenlemek için kopyala', exact: true }).click()
+  await page.getByRole('button', { name: 'Preseti kaydet', exact: true }).click()
+  await expect.poll(() => state.saved.role_rune_selection.TOP?.['266']).toBe(1)
+  expect((state.saved.custom_runes['266'] as Record<string, RunePage>)['1'].selectedPerkIds).toEqual(alternative.selectedPerkIds)
+})
+
 test('late recommendations for an abandoned role never replace the current empty result', async ({ page }) => {
   const state = await mockRunes(page)
   const pending = deferred<void>()
@@ -100,7 +122,7 @@ test('late recommendations for an abandoned role never replace the current empty
   await page.getByRole('button', { name: 'Rünleri yenile', exact: true }).click()
   await expect.poll(() => waiting).toBe(true)
   await page.getByRole('combobox', { name: 'Rün rolü', exact: true }).selectOption('MIDDLE')
-  await expect(page.getByText('Bu şampiyon ve rol için öneri yok', { exact: true })).toBeVisible()
+  await expect(page.getByText('Bu şampiyon için kullanılabilir öneri yok', { exact: true })).toBeVisible()
   pending.resolve()
   await expect(page.getByLabel('League rün önerisi')).toHaveCount(0)
   await expect(page.getByRole('button', { name: 'Önerileni kullan', exact: true })).toBeDisabled()
@@ -115,7 +137,7 @@ test('recommendation connection errors remain distinct from no matching role and
   } }))
   await page.getByRole('button', { name: 'Rünleri yenile', exact: true }).click()
   await expect(page.getByText('Öneriler yüklenemedi', { exact: true })).toBeVisible()
-  await expect(page.getByText('Bu şampiyon ve rol için öneri yok', { exact: true })).toHaveCount(0)
+  await expect(page.getByText('Bu şampiyon için kullanılabilir öneri yok', { exact: true })).toHaveCount(0)
   await expect(page.getByRole('button', { name: 'Önerileni kullan', exact: true })).toBeDisabled()
   unavailable = false
   await page.getByRole('button', { name: 'Rünleri yenile', exact: true }).click()
@@ -128,7 +150,7 @@ test('fallback notice names the client and role source', async ({ page }) => {
   await page.route('**/api/health', (route) => route.fulfill({ json: { ...health, running: true,
     rune_notice: { id: 3, code: 'rune_fallback', role: 'JUNGLE', champion_id: 106 } } }))
   const notice = page.getByRole('alert', { name: 'Rün uygulama bildirimi' })
-  await expect(notice).toContainText('League istemcisinin bu şampiyon ve role uygun ilk geçerli önerisi uygulandı.')
+  await expect(notice).toContainText('League istemcisinin bu şampiyon için ilk geçerli önerisi uygulandı.')
   await expect(notice).not.toContainText('veri paketi')
 })
 

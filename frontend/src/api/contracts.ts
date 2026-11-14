@@ -56,7 +56,10 @@ export const runeEditorCatalogSchema = z.object({ styles: z.array(z.object({
   id: z.number().int().positive(), name: z.string(), description: z.string(), allowedSubStyles: z.array(z.number().int().positive()),
   rows: z.array(z.array(runeChoiceSchema).min(1)).length(4), shardRows: z.array(z.array(runeChoiceSchema).min(1)).length(3),
 })).min(2) })
-export const runeRecommendationSchema = z.object({ champion_id: z.number().int().positive(), role: z.enum(['TOP', 'JUNGLE', 'MIDDLE', 'BOTTOM', 'UTILITY']).nullable(), map_id: z.literal(11), source: z.literal('league'), page: runePageSchema.nullable(), options: z.array(runePageSchema), unavailableReason: z.enum(['missing', 'outdated', 'role_required']).nullable() }).superRefine((value, context) => {
+export const runeRecommendationSchema = z.object({ champion_id: z.number().int().positive(), role: z.enum(['TOP', 'JUNGLE', 'MIDDLE', 'BOTTOM', 'UTILITY']).nullable(), map_id: z.literal(11), source: z.literal('league'), page: runePageSchema.nullable(), options: z.array(runePageSchema), optionRoles: z.array(z.enum(['TOP', 'JUNGLE', 'MIDDLE', 'BOTTOM', 'UTILITY'])).optional(), unavailableReason: z.enum(['missing', 'outdated', 'role_required']).nullable() }).superRefine((value, context) => {
+  if (value.optionRoles !== undefined && value.optionRoles.length !== value.options.length) {
+    context.addIssue({ code: 'custom', message: 'Inconsistent recommendation source roles' })
+  }
   if (JSON.stringify(value.page) !== JSON.stringify(value.options[0] ?? null) || (value.page !== null && value.unavailableReason !== null)) {
     context.addIssue({ code: 'custom', message: 'Inconsistent League rune recommendation' })
   }

@@ -319,16 +319,17 @@ def test_unknown_role_or_unsupported_queue_never_writes_guessed_recommendations(
     assert runner.feedback.read_rune().code == "rune_unavailable"
 
 
-def test_client_fallback_for_wrong_role_is_not_applied_and_spells_are_untouched(setup):
+def test_same_champion_other_role_recommendation_is_applied_without_changing_spells(setup):
     client, runner, _, _ = setup
     page = {"primaryStyleId": 8000, "subStyleId": 8100, "selectedPerkIds": list(range(1, 10))}
     client.recommended_runes.return_value = reply(
         [league_page(page, role="TOP"), league_page(page, champion_id=2)]
     )
-    assert not runner.apply_runes(session(), {})
+    assert runner.apply_runes(session(), {})
     client.recommended_runes.assert_called_once_with(1, "MIDDLE", 11)
-    client.rune_pages.assert_not_called()
-    client.create_rune_page.assert_not_called()
+    client.rune_pages.assert_called_once()
+    assert client.create_rune_page.call_args.args[0]["selectedPerkIds"] == page["selectedPerkIds"]
+    assert "sourceRole" not in client.create_rune_page.call_args.args[0]
     client.set_selection.assert_not_called()
 
 

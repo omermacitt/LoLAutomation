@@ -68,7 +68,7 @@ class AutomationRunner:
 
         Priority:
         1) User-selected custom preset (if configured)
-        2) First catalog-valid League recommendation for the actual assigned role
+        2) First catalog-valid League recommendation, preferring the assigned role
         """
         my_cell = session.get("localPlayerCellId")
         my_champ_id = 0

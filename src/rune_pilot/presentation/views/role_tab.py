@@ -365,7 +365,7 @@ class RoleTab(QWidget):
         row.rune_button.setToolTip(
             f"{count} custom rune preset(s) saved"
             if count
-            else "League recommendation for the assigned role; choose runes manually if unavailable"
+            else "League recommendation; another role for this champion may be used if needed"
         )
         _set_configured(row.rune_button, count > 0)
 
