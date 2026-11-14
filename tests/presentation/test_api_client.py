@@ -141,6 +141,20 @@ def test_network_error_and_save_error_are_reported(monkeypatch):
             {"champion_id": 266, "skins": [{"id": 266000, "name": "Default"}]},
         ),
         (
+            "skin_options",
+            (266,),
+            "/champions/266/skins",
+            SkinOptions,
+            {
+                "champion_id": 266,
+                "skins": [
+                    {"id": 266000, "name": "Default"},
+                    {"id": 266002, "name": "Mecha"},
+                    {"id": 266004, "name": "Obsidian", "parent_skin_id": 266002},
+                ],
+            },
+        ),
+        (
             "rune_catalog",
             (),
             "/runes/catalog",
@@ -156,7 +170,8 @@ def test_game_queries_use_typed_contracts(monkeypatch, method, args, path, model
     monkeypatch.setattr(requests, "get", get)
     result = getattr(ApiClient(base_url="http://example.test"), method)(*args)
     assert isinstance(result, model)
-    assert result.model_dump() == body
+    # Missing optional metadata from an older server stays unset; supplied parents survive.
+    assert result.model_dump(exclude_unset=True) == body
     assert get.call_args.args == ("http://example.test" + path,)
     assert get.call_args.kwargs["timeout"] > 3
 

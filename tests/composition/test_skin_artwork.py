@@ -13,6 +13,8 @@ PATH = (
     "/lol-game-data/assets/ASSETS/Characters/Aatrox/Skins/Base/Images/aatrox_splash_centered_0.jpg"
 )
 JPEG = b"\xff\xd8\xffimage"
+CHROMA_PATH = "/lol-game-data/assets/v1/champion-chroma-images/266/266004.png"
+PNG = b"\x89PNG\r\n\x1a\nchroma"
 
 
 def source_for(path=PATH):
@@ -40,6 +42,43 @@ def test_artwork_endpoint_uses_known_metadata_and_caches_jpeg():
     assert first.headers["x-content-type-options"] == "nosniff"
     source.champion_data.assert_called_once_with(266)
     source.asset.assert_called_once_with(PATH)
+
+
+def test_nested_chroma_artwork_uses_its_own_png_and_is_cached():
+    source = source_for()
+    source.champion_data.return_value.json.return_value["skins"][1]["chromas"] = [
+        {"id": 266004, "chromaPath": CHROMA_PATH}
+    ]
+    source.asset.return_value.content = PNG
+    with TestClient(create_app(league_client=source)) as api:
+        for _ in range(2):
+            response = api.get("/champions/266/skins/266004/artwork")
+            assert response.status_code == 200
+            assert response.content == PNG
+            assert response.headers["content-type"] == "image/png"
+    source.asset.assert_called_once_with(CHROMA_PATH)
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        "https://example.test/chroma.png",
+        "/lol-login/v1/session",
+        CHROMA_PATH + "?token=secret",
+        CHROMA_PATH.replace("266/", "107/"),
+        CHROMA_PATH.replace("266004", "266005"),
+        CHROMA_PATH.replace("266/", "../"),
+        PATH,
+    ],
+)
+def test_chroma_assets_must_match_the_exact_metadata_champion_and_variant(path):
+    source = source_for()
+    source.champion_data.return_value.json.return_value["skins"][1]["chromas"] = [
+        {"id": 266004, "chromaPath": path}
+    ]
+    query = SkinArtworkQuery(source)
+    assert query.artwork(266, 266004) is None
+    source.asset.assert_not_called()
 
 
 @pytest.mark.parametrize(

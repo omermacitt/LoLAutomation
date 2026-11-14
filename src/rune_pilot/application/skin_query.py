@@ -1,24 +1,20 @@
 """Skin catalog queries against the injected League Client."""
 
 from rune_pilot.application.ports.league_client import LeagueClient
+from rune_pilot.domain.game_data import SkinCatalog
 
 
 class SkinQuery:
     def __init__(self, client: LeagueClient):
         self._client = client
 
-    def get_skin_options_for_champion(
-        self, champ_id: int, *, strict: bool = False
-    ) -> tuple[dict[int, str], set[int]]:
-        """
-        Returns skin names and owned skin IDs for a champion.
-
-        Returns: (skin_name_by_id, owned_skin_ids)
-        """
+    def get_skin_options_for_champion(self, champ_id: int, *, strict: bool = False) -> SkinCatalog:
+        """Read names, ownership and the explicit parent of each League chroma."""
         champ_id_int = int(champ_id)
         base_skin_id = champ_id_int * 1000
 
         skin_name_by_id: dict[int, str] = {}
+        chroma_parents: dict[int, int] = {}
         try:
             champ_res = self._client.champion_data(champ_id_int)
             if strict:
@@ -29,16 +25,37 @@ class SkinQuery:
                 if strict and not isinstance(skins, list):
                     raise ValueError("Unexpected champion skin data")
                 if isinstance(skins, list):
-                    for s in skins:
-                        if not isinstance(s, dict):
+                    parents = {}
+                    for skin in skins:
+                        if not isinstance(skin, dict):
                             continue
                         try:
-                            sid = int(s.get("id"))
+                            sid = int(skin.get("id"))
                         except (TypeError, ValueError):
                             continue
-                        name = s.get("name")
+                        if sid // 1000 != champ_id_int:
+                            continue
+                        parents[sid] = skin
+                        name = skin.get("name")
                         if isinstance(name, str) and name.strip():
                             skin_name_by_id[sid] = name.strip()
+                    for parent_id, skin in parents.items():
+                        chromas = skin.get("chromas")
+                        if not isinstance(chromas, list):
+                            continue
+                        for chroma in chromas:
+                            if not isinstance(chroma, dict):
+                                continue
+                            try:
+                                cid = int(chroma.get("id"))
+                            except (TypeError, ValueError):
+                                continue
+                            if cid // 1000 != champ_id_int or cid in parents:
+                                continue
+                            chroma_parents[cid] = parent_id
+                            name = chroma.get("name")
+                            if isinstance(name, str) and name.strip():
+                                skin_name_by_id[cid] = name.strip()
         except Exception:
             if strict:
                 raise
@@ -72,4 +89,4 @@ class SkinQuery:
                 raise
             pass
 
-        return skin_name_by_id, owned_skin_ids
+        return SkinCatalog(skin_name_by_id, owned_skin_ids, chroma_parents)

@@ -7,6 +7,7 @@ from fastapi.testclient import TestClient
 
 from rune_pilot.application.game_query_service import GameQueryService
 from rune_pilot.composition.api_app import create_app
+from rune_pilot.domain.game_data import SkinCatalog
 
 
 @pytest.fixture
@@ -41,7 +42,7 @@ def service_for(sources):
         champion_summary=lambda: sources.summary,
         owned_champions=lambda: sources.owned,
         gameflow_phase=lambda: sources.phase,
-        skin_options=lambda cid: (sources.names, sources.skins),
+        skin_options=lambda cid: SkinCatalog(sources.names, sources.skins),
         perk_styles=lambda: sources.styles,
         perks=lambda: sources.perks,
         perk_icon=icon,

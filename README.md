@@ -25,10 +25,10 @@ are planned for future updates.
 ## Current application
 
 The modern **React + TypeScript** interface now runs in a **Tauri 2 Windows
-desktop shell**, with a bundled Python/FastAPI backend. A versioned NSIS installer
-can be built locally. The first beta still needs clean-machine, old-version
-migration and real League acceptance before public release. The **PyQt6** entry
-remains available as a development fallback.
+desktop shell**, with a bundled Python/FastAPI backend. Download the Windows x64
+Setup from the [latest stable release](https://github.com/omermacitt/LoLAutomation/releases/latest).
+Installer users do not need Python, Node.js or a webdriver. Riot/League sign-in
+remains manual. The **PyQt6** entry remains available as a development fallback.
 
 ## Features
 
@@ -45,6 +45,9 @@ remains available as a development fallback.
   champion/role recommendations read directly from the running League Client.
 - Summoner spells and owned/default skin selection per role and champion, with
   champion portraits and skin artwork supplied by the running League Client.
+  The gallery shows one card per costume; open its details to choose an owned
+  color variant. Chroma names and images come from League, and browsing details
+  does not change the saved selection.
 - Ordered settings saves, conflict detection between windows, explicit Start/Stop
   controls and recovery after failed requests.
 - System tray support, optional Windows toast notifications and configurable
@@ -59,7 +62,7 @@ role's page. League must be open; there is no bundled recommendation dataset or 
 scraping fallback. Recommendations follow the client's data and are not a RunePilot
 win-rate or patch freshness guarantee.
 
-## Requirements
+## Source development requirements
 
 - Windows 10 or 11 for the backend and desktop application.
 - Python **3.11+**; the examples and Windows CI use **3.13**.
@@ -231,7 +234,7 @@ npm.cmd ci --prefix frontend
 .\tools\build_desktop.ps1
 ```
 
-Output: `dist/desktop/1.0.0/RunePilotSetup-1.0.0-x64.exe`,
+Output: `dist/desktop/1.0.1/RunePilotSetup-1.0.1-x64.exe`,
 `SHA256SUMS.txt` and `build-manifest.json`. End users need the Setup file;
 Python, Node and this repository are bundled or unnecessary. WebView2 is installed
 by the bootstrapper if missing, which requires Internet access.

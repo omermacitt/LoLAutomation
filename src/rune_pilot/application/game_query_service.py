@@ -9,6 +9,7 @@ from rune_pilot.domain.game_data import (
     ChampionOption,
     GameflowStatus,
     RuneCatalog,
+    SkinCatalog,
     SkinOption,
     SkinOptions,
 )
@@ -25,7 +26,7 @@ class GameQueryService:
         champion_summary: Callable[[], list[dict[str, Any]]],
         owned_champions: Callable[[], list[dict[str, Any]]],
         gameflow_phase: Callable[[], str | None],
-        skin_options: Callable[[int], tuple[dict[int, str], set[int]]],
+        skin_options: Callable[[int], SkinCatalog],
         perk_styles: Callable[[], list[dict[str, Any]]],
         perks: Callable[[], list[dict[str, Any]]],
         perk_icon: Callable[[str], bytes | None],
@@ -83,13 +84,21 @@ class GameQueryService:
 
     def skins(self, champion_id: int) -> SkinOptions:
         try:
-            names, owned = self._skin_options(champion_id)
+            catalog = self._skin_options(champion_id)
+            names, owned, parents = catalog.names, catalog.owned, catalog.chroma_parents
             base = champion_id * 1000
+            available = {base} | {sid for sid in owned if base < sid < base + 1000}
             options = [SkinOption(id=base, name=f"Default ({names.get(base) or 'Default'})")]
             options += [
-                SkinOption(id=sid, name=names.get(sid) or f"Skin {sid}")
+                SkinOption(
+                    id=sid, name=names.get(sid) or f"Skin {sid}", parent_skin_id=parents.get(sid)
+                )
                 for sid in sorted(owned)
                 if base < sid < base + 1000
+                and (
+                    sid not in parents
+                    or (parents[sid] in available and parents[sid] not in parents)
+                )
             ]
             return SkinOptions(champion_id=champion_id, skins=options)
         except Exception as e:

@@ -2,8 +2,10 @@
 
 React + TypeScript + Vite ile masaüstü arayüzünün geliştirme sürümü. Şampiyon/ban
 seçimi, seçim sırası, büyüler, rün editörü, kostüm galerisi, kalıcı kayıt ve otomasyon kontrolleri hazır.
-Tauri 2 masaüstü kabuğu ve Windows beta Setup üretimi eklendi; temiz makine ve
-gerçek League kabulü bekliyor. [Derleme ve dağıtım](../README.md#build-the-windows-desktop-installer).
+Tauri 2 masaüstü kabuğu ve Windows x64 Setup dağıtımı hazır.
+Kostüm galerisi ana kostümleri listeler; sahip olunan renk paketleri kostümün
+ayrıntısında seçilir. Ayrıntıya bakmak kayıtlı seçimi değiştirmez.
+[Derleme ve dağıtım](../README.md#build-the-windows-desktop-installer).
 
 ## Çalıştırma
 

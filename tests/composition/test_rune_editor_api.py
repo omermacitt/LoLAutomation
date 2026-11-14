@@ -8,6 +8,7 @@ from fastapi.testclient import TestClient
 from rune_pilot.application.game_query_service import GameQueryService
 from rune_pilot.application.rune_editor_service import RuneEditorService
 from rune_pilot.composition.api_app import create_app
+from rune_pilot.domain.game_data import SkinCatalog
 from rune_pilot.domain.rune_editor import normalize_editor_catalog
 
 
@@ -55,7 +56,7 @@ def service(metadata, recommendation=None):
         champion_summary=lambda: [],
         owned_champions=lambda: [],
         gameflow_phase=lambda: None,
-        skin_options=lambda cid: ({}, set()),
+        skin_options=lambda cid: SkinCatalog({}, set()),
         perk_styles=lambda: styles,
         perks=lambda: perks,
         perk_icon=lambda path: b"png",
