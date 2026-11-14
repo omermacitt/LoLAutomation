@@ -1,6 +1,6 @@
 """RunePilot application metadata — version, app name, and configuration constants."""
 
-__version__ = "1.0.0"
+__version__ = "1.0.1"
 
 APP_ID = "RunePilot"
 APP_DISPLAY_NAME = "RunePilot"

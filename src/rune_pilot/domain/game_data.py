@@ -1,5 +1,6 @@
 """Validated data contracts shared by HTTP routes and desktop clients."""
 
+from dataclasses import dataclass, field
 from typing import Any
 
 from pydantic import BaseModel, Field
@@ -22,6 +23,14 @@ class GameflowStatus(BaseModel):
 class SkinOption(BaseModel):
     id: int = Field(ge=0)
     name: str
+    parent_skin_id: int | None = Field(default=None, gt=0)
+
+
+@dataclass
+class SkinCatalog:
+    names: dict[int, str]
+    owned: set[int]
+    chroma_parents: dict[int, int] = field(default_factory=dict)
 
 
 class SkinOptions(BaseModel):

@@ -69,6 +69,27 @@ class SkinArtworkQuery:
                             and _ASSET.fullmatch(path)
                         ):
                             paths[sid] = path
+                        if not isinstance(sid, int) or sid // 1000 != champion_id:
+                            continue
+                        chromas = skin.get("chromas")
+                        if not isinstance(chromas, list):
+                            continue
+                        for chroma in chromas:
+                            if not isinstance(chroma, dict):
+                                continue
+                            chroma_id = chroma.get("id")
+                            if (
+                                not isinstance(chroma_id, int)
+                                or chroma_id // 1000 != champion_id
+                                or chroma_id == sid
+                            ):
+                                continue
+                            path = chroma.get("chromaPath")
+                            if path == (
+                                "/lol-game-data/assets/v1/champion-chroma-images/"
+                                f"{champion_id}/{chroma_id}.png"
+                            ):
+                                paths[chroma_id] = path
                     metadata = (self._clock() + CACHE_SECONDS, paths)
                     self._metadata[champion_id] = metadata
                     while len(self._metadata) > MAX_CACHED_CHAMPIONS:

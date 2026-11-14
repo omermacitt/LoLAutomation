@@ -1,5 +1,12 @@
-import type { Settings, SkinOptions } from '../../api/contracts'
+import type { Settings, SkinOption, SkinOptions } from '../../api/contracts'
 import type { RoleKey } from '../champions/selection'
+
+export type SkinFamily = { skin: SkinOption; chromas: SkinOption[] }
+
+export function skinFamilies(options: SkinOptions | undefined): SkinFamily[] {
+  return options?.skins.filter((skin) => skin.parent_skin_id === undefined)
+    .map((skin) => ({ skin, chromas: options.skins.filter((item) => item.parent_skin_id === skin.id) })) ?? []
+}
 
 export function selectedSkin(config: Settings | undefined, role: RoleKey, championId: number): number | undefined {
   const entries = config?.custom_skins[role]

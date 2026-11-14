@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { skinOptionsSchema } from '../../api/contracts'
 import { settings } from '../../test/fixtures'
-import { selectedSkin, withSkin } from './model'
+import { selectedSkin, skinFamilies, withSkin } from './model'
 
 const options = { champion_id: 266, skins: [{ id: 266000, name: 'Aatrox' }, { id: 266001, name: 'Justicar' }] }
 describe('owned skin selection', () => {
@@ -32,5 +32,22 @@ describe('owned skin selection', () => {
     expect(skinOptionsSchema.safeParse({ ...options, skins: [{ id: 103000, name: 'Ahri' }] }).success).toBe(false)
     expect(skinOptionsSchema.safeParse({ ...options, skins: [options.skins[1]] }).success).toBe(false)
     expect(skinOptionsSchema.safeParse({ ...options, skins: [...options.skins, options.skins[0]] }).success).toBe(false)
+  })
+  it('groups by explicit parent metadata and preserves the selected color ID', () => {
+    const grouped = { ...options, skins: [...options.skins,
+      { id: 266004, name: 'Different localized name', parent_skin_id: 266001 },
+      { id: 266005, name: 'Another color', parent_skin_id: 266001 },
+    ] }
+    expect(skinFamilies(grouped).map((family) => [family.skin.id, family.chromas.map((chroma) => chroma.id)]))
+      .toEqual([[266000, []], [266001, [266004, 266005]]])
+    const next = withSkin(settings, 'TOP', 266, 266004, grouped)
+    expect(selectedSkin(next, 'TOP', 266)).toBe(266004)
+    expect(selectedSkin(withSkin(next, 'TOP', 266, 266001, grouped), 'TOP', 266)).toBe(266001)
+    expect(skinOptionsSchema.safeParse(grouped).success).toBe(true)
+    for (const parent_skin_id of [266004, 266999, 103001]) {
+      expect(skinOptionsSchema.safeParse({ ...grouped, skins: [...options.skins,
+        { id: 266004, name: 'Bad relation', parent_skin_id },
+      ] }).success).toBe(false)
+    }
   })
 })

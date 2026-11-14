@@ -377,15 +377,23 @@ def test_delayed_role_requeries_same_champion_and_applies_each_actual_role_recom
     ]
 
 
-def test_same_settings_revision_retries_failed_skin_and_new_revision_reapplies(setup):
+@pytest.mark.parametrize("champion_id,skin_id", [(1, 1001), (107, 107005)])
+def test_same_settings_revision_retries_failed_skin_and_new_revision_reapplies(
+    setup, champion_id, skin_id
+):
     client, runner, _, _ = setup
-    client.champ_select_session.return_value = reply(session())
+    client.recommended_runes.return_value.json.return_value[0][
+        "recommendationChampionId"
+    ] = champion_id
+    selected = session()
+    selected["myTeam"][0]["championId"] = champion_id
+    client.champ_select_session.return_value = reply(selected)
     client.set_selection.side_effect = [reply(status=400), reply(status=204), reply(status=204)]
-    config = {"auto_queue": False, "custom_skins": {"MIDDLE": {"1": 1001}}}
+    config = {"auto_queue": False, "custom_skins": {"MIDDLE": {str(champion_id): skin_id}}}
     run_iterations(runner, [AutomationSnapshot(1, config)] * 3 + [AutomationSnapshot(2, config)])
-    assert client.set_selection.call_args_list == [call({"selectedSkinId": 1001})] * 3
+    assert client.set_selection.call_args_list == [call({"selectedSkinId": skin_id})] * 3
     assert client.create_rune_page.call_count == 2
-    assert config == {"auto_queue": False, "custom_skins": {"MIDDLE": {"1": 1001}}}
+    assert config == {"auto_queue": False, "custom_skins": {"MIDDLE": {str(champion_id): skin_id}}}
 
 
 def test_missing_session_resets_progress_for_next_game_and_restart_has_fresh_state(setup):

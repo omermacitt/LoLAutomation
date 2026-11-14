@@ -68,12 +68,21 @@ export type RuneStyle = RuneEditorCatalog['styles'][number]
 export type RuneRecommendation = z.infer<typeof runeRecommendationSchema>
 
 export const skinOptionsSchema = z.object({ champion_id: z.number().int().positive(),
-  skins: z.array(z.object({ id: z.number().int().positive(), name: z.string().min(1) })).min(1),
+  skins: z.array(z.object({ id: z.number().int().positive(), name: z.string().min(1),
+    parent_skin_id: z.number().int().positive().optional(),
+  })).min(1),
 }).superRefine((value, context) => {
+  const byId = new Map(value.skins.map((skin) => [skin.id, skin]))
   if (value.skins.some((skin) => Math.floor(skin.id / 1000) !== value.champion_id)
     || new Set(value.skins.map((skin) => skin.id)).size !== value.skins.length
     || !value.skins.some((skin) => skin.id === value.champion_id * 1000)) {
     context.addIssue({ code: 'custom', message: 'Skin options do not match the champion' })
+  }
+  if (value.skins.some((skin) => skin.parent_skin_id !== undefined && (
+    skin.id === value.champion_id * 1000 || skin.id === skin.parent_skin_id
+    || !byId.has(skin.parent_skin_id) || byId.get(skin.parent_skin_id)?.parent_skin_id !== undefined
+  ))) {
+    context.addIssue({ code: 'custom', message: 'Invalid chroma parent' })
   }
 })
 export type SkinOptions = z.infer<typeof skinOptionsSchema>

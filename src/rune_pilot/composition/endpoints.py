@@ -89,7 +89,11 @@ def register_routes(app: FastAPI) -> None:
             },
         )
 
-    @app.get("/champions/{champion_id}/skins", response_model=SkinOptions)
+    @app.get(
+        "/champions/{champion_id}/skins",
+        response_model=SkinOptions,
+        response_model_exclude_none=True,
+    )
     def skins(champion_id: int = Path(gt=0), service: GameQueryService = Depends(get_game_queries)):
         return service.skins(champion_id)
 
