@@ -1,4 +1,4 @@
-"""Client recommendations never fall back to another position or a web dataset."""
+"""Client recommendations prefer the role and allow same-champion fallback pages."""
 
 from copy import deepcopy
 from unittest.mock import Mock
@@ -29,11 +29,21 @@ def test_mixed_client_response_filters_champion_and_role_without_trusting_defaul
     raw = [suggestion("TOP"), first, second, suggestion(champion=1), None]
     before = deepcopy(raw)
     result = recommendation_pages(raw, 106, "JUNGLE")
-    assert len(result) == 2
-    assert [page["selectedPerkIds"][0] for page in result] == [8005, 8008]
+    assert len(result) == 3
+    assert [page["sourceRole"] for page in result] == ["JUNGLE", "JUNGLE", "TOP"]
+    assert [page["selectedPerkIds"][0] for page in result[:2]] == [8005, 8008]
     assert "summonerSpellIds" not in result[0]
     assert raw == before
-    assert recommendation_pages(raw, 106, "MIDDLE") == []
+    fallback = recommendation_pages(raw, 106, "MIDDLE")
+    assert [page["sourceRole"] for page in fallback] == ["TOP", "JUNGLE", "JUNGLE"]
+
+
+def test_default_role_fallback_is_allowed_but_another_champion_or_unknown_role_is_not():
+    raw = [suggestion("UTILITY"), suggestion("TOP", champion=1), suggestion("UNKNOWN")]
+    pages = recommendation_pages(raw, 106, "JUNGLE")
+    assert len(pages) == 1
+    assert pages[0]["sourceRole"] == "UTILITY"
+    assert recommendation_pages(raw[1:], 106, "JUNGLE") == []
 
 
 @pytest.mark.parametrize(

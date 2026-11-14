@@ -165,6 +165,44 @@ def test_incomplete_metadata_fails_without_inventing_defaults(metadata):
         assert client.get("/runes/editor-catalog").status_code == 503
 
 
+def test_source_roles_stay_aligned_after_invalid_pages_and_duplicates(metadata, page):
+    editor, _ = service(metadata)
+    invalid = {**page, "selectedPerkIds": [999999] * 9, "sourceRole": "TOP"}
+    fallback = {**page, "sourceRole": "UTILITY"}
+    alternative = {
+        **page,
+        "selectedPerkIds": [8002, *page["selectedPerkIds"][1:]],
+        "sourceRole": "BOTTOM",
+    }
+    editor._recommended = lambda cid, role: [invalid, fallback, fallback, alternative]
+    result = editor.recommendation(12, "JUNGLE")
+    assert result.role == "JUNGLE"
+    assert len(result.options) == 2
+    assert result.optionRoles == ["UTILITY", "BOTTOM"]
+
+
+def test_valid_other_role_is_available_when_exact_role_page_is_outdated(metadata, page):
+    editor, _ = service(metadata)
+    editor._recommended = lambda cid, role: [
+        {**page, "selectedPerkIds": [999999] * 9, "sourceRole": "JUNGLE"},
+        {**page, "sourceRole": "UTILITY"},
+    ]
+    result = editor.recommendation(12, "JUNGLE")
+    assert result.page.model_dump() == page
+    assert result.optionRoles == ["UTILITY"]
+
+
+def test_valid_exact_role_is_preferred_to_other_roles(metadata, page):
+    editor, _ = service(metadata)
+    editor._recommended = lambda cid, role: [
+        {**page, "sourceRole": "JUNGLE"},
+        {**page, "name": "Support", "sourceRole": "UTILITY"},
+    ]
+    result = editor.recommendation(12, "JUNGLE")
+    assert result.optionRoles == ["JUNGLE"]
+    assert len(result.options) == 1
+
+
 def test_role_is_required_and_invalid_roles_are_rejected_without_recommendation_reads(metadata):
     from unittest.mock import Mock
 

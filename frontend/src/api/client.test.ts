@@ -6,6 +6,15 @@ import { runePage } from '../test/runeFixtures'
 afterEach(() => vi.useRealTimers())
 
 describe('local API client', () => {
+  it('accepts source roles without changing the requested role and rejects misaligned metadata', async () => {
+    const reply = { champion_id: 12, role: 'JUNGLE', map_id: 11, source: 'league', page: runePage, options: [runePage], optionRoles: ['UTILITY'], unavailableReason: null }
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValueOnce(Response.json(reply))
+      .mockResolvedValueOnce(Response.json({ ...reply, optionRoles: [] }))
+    const api = new ApiClient(fetcher)
+    const signal = new AbortController().signal
+    expect(await api.recommendedRune(12, 'JUNGLE', signal)).toEqual(reply)
+    await expect(api.recommendedRune(12, 'JUNGLE', signal)).rejects.toThrow()
+  })
   it('requests the exact role and rejects another champion, role or map in a successful reply', async () => {
     const reply = { champion_id: 106, role: 'JUNGLE', map_id: 11, source: 'league', page: runePage, options: [runePage], unavailableReason: null }
     const fetcher = vi.fn<typeof fetch>().mockResolvedValueOnce(Response.json(reply))

@@ -55,10 +55,11 @@ remains manual. The **PyQt6** entry remains available as a development fallback.
 
 Preset contents are shared per champion; the active preset can be assigned separately
 for each role. Recommended mode uses the first catalog-valid League recommendation
-for the actual champion and assigned role on Summoner's Rift. Other client suggestions
-can be previewed and copied into a custom preset. If League has no matching role
-recommendation, RunePilot asks for manual rune selection instead of applying another
-role's page. League must be open; there is no bundled recommendation dataset or web
+for the actual champion on Summoner's Rift, preferring the assigned role. Other client
+suggestions can be previewed and copied into a custom preset. If League has no matching
+role recommendation, its suggestions for the same champion in another role can be used;
+the rune editor identifies the source role. League must be open; there is no bundled
+recommendation dataset or web
 scraping fallback. Recommendations follow the client's data and are not a RunePilot
 win-rate or patch freshness guarantee.
 

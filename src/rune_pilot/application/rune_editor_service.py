@@ -37,17 +37,28 @@ class RuneEditorService:
             )
         catalog = self.catalog()
         options = []
+        option_roles = []
         for page in pages:
             try:
                 normalized = validate_editor_page(RunePage.model_validate(page), catalog)
                 if normalized not in options:
                     options.append(normalized)
+                    option_roles.append(page.get("sourceRole", role))
             except ValueError:
                 continue
+        if role in option_roles:
+            matching = [
+                (page, source_role)
+                for page, source_role in zip(options, option_roles, strict=True)
+                if source_role == role
+            ]
+            options = [page for page, _ in matching]
+            option_roles = [source_role for _, source_role in matching]
         return RuneRecommendation(
             champion_id=champion_id,
             role=role,
             page=options[0] if options else None,
             options=options,
+            optionRoles=option_roles,
             unavailableReason=None if options else "outdated",
         )

@@ -41,6 +41,9 @@ class RuneRecommendation(BaseModel):
     source: Literal["league"] = "league"
     page: RunePage | None = None
     options: list[RunePage] = Field(default_factory=list)
+    optionRoles: list[Literal["TOP", "JUNGLE", "MIDDLE", "BOTTOM", "UTILITY"]] = Field(
+        default_factory=list
+    )
     unavailableReason: Literal["missing", "outdated", "role_required"] | None = None
 
 
