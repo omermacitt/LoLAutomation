@@ -19,6 +19,11 @@ export const roleKey = (name: string | null) => roles.find((role) => role.key ==
 export function selectChampion(config: Settings, role: RoleKey, target: Target, id: number | null): Settings {
   if (target.kind === 'pick' && id !== null && siblingPickIndex(config, role, target.index, id) !== undefined) return config
   const result = { ...config, ...updateSelection(config, role, target, id) }
+  if (role === 'JUNGLE' && target.kind === 'pick' && id !== null && !config.custom_summoner_spells[role]?.[String(id)]) {
+    result.custom_summoner_spells = { ...config.custom_summoner_spells, [role]: {
+      ...config.custom_summoner_spells[role], [String(id)]: spellPair(config, role, id),
+    } }
+  }
   if (id !== null && target.kind === 'pick') {
     const current = result.custom_skins[role]
     if (current && typeof current === 'object' && String(id) in current) return result
@@ -34,8 +39,19 @@ export function selectChampion(config: Settings, role: RoleKey, target: Target, 
   return result
 }
 
+export function spellPair(config: Settings, role: RoleKey, id: number) {
+  return config.custom_summoner_spells[role]?.[String(id)]
+    ?? (role === 'JUNGLE' ? { spell1Id: 4, spell2Id: 11 } : { spell1Id: null, spell2Id: null })
+}
+
+export function swapSpells(config: Settings, role: RoleKey, id: number): Settings {
+  const previous = spellPair(config, role, id)
+  return { ...config, custom_summoner_spells: { ...config.custom_summoner_spells,
+    [role]: { ...config.custom_summoner_spells[role], [String(id)]: { spell1Id: previous.spell2Id, spell2Id: previous.spell1Id } } } }
+}
+
 export function setSpell(config: Settings, role: RoleKey, id: number, slot: 'spell1Id' | 'spell2Id', spell: number | null): Settings {
-  const previous = config.custom_summoner_spells[role]?.[String(id)] ?? { spell1Id: null, spell2Id: null }
+  const previous = spellPair(config, role, id)
   const pair = { ...previous, [slot]: spell }
   if (spell !== null && pair.spell1Id === pair.spell2Id) pair[slot === 'spell1Id' ? 'spell2Id' : 'spell1Id'] = null
   return { ...config, custom_summoner_spells: { ...config.custom_summoner_spells,
@@ -84,11 +100,14 @@ export function automationPayload(config: Settings, catalog: ChampionCatalog): A
   const roleChampions: Record<string, number[]> = {}
   const roleBans: Record<string, number> = {}
   const roleSpells: AutomationConfig['role_summoner_spells'] = {}
+  const customSpells = { ...config.custom_summoner_spells }
   for (const role of roles) {
     const picks = [...new Set((config.role_champions_ui[role.key] ?? []).filter((id): id is number => id !== null && pickable.has(id)))]
     if (picks.length) {
       roleChampions[role.key] = picks
-      const pair = config.custom_summoner_spells[role.key]?.[String(picks[0])]
+      if (role.key === 'JUNGLE') customSpells.JUNGLE = { ...customSpells.JUNGLE,
+        ...Object.fromEntries(picks.map((id) => [String(id), spellPair(config, role.key, id)])) }
+      const pair = customSpells[role.key]?.[String(picks[0])]
       if (pair) roleSpells[role.key] = pair
     }
     const ban = config.role_bans_ui[role.key]
@@ -100,7 +119,7 @@ export function automationPayload(config: Settings, catalog: ChampionCatalog): A
     primary_summoner_spell: roleSpells[primary ?? '']?.spell1Id ?? null,
     secondary_summoner_spell: roleSpells[primary ?? '']?.spell2Id ?? null,
     role_summoner_spells: roleSpells, role_champions: roleChampions, role_bans: roleBans,
-    custom_summoner_spells: config.custom_summoner_spells, custom_runes: config.custom_runes,
+    custom_summoner_spells: customSpells, custom_runes: config.custom_runes,
     rune_selection: config.rune_selection, role_rune_selection: config.role_rune_selection, custom_skins: config.custom_skins, auto_queue: true,
   }
 }

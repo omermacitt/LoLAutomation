@@ -1,4 +1,9 @@
-.spell-editor .spell-slots { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; }
+.spell-editor .spell-slots { display: grid; grid-template-columns: minmax(0, 1fr) 28px minmax(0, 1fr); gap: 5px; align-items: center; }
+.spell-slots > .spell-slot:nth-child(2) { grid-column: 3; grid-row: 1; }
+.spell-swap { grid-column: 2; grid-row: 1; align-self: center; margin-top: 16px; min-height: 38px; display: grid; place-items: center; border: 1px solid #4c3a59; border-radius: 7px; background: #211a2b; color: #dbc9eb; cursor: pointer; }
+.spell-swap:hover:not(:disabled) { background: #30223b; border-color: #a37fbe; }
+.spell-swap:disabled { opacity: .45; cursor: default; }
+.spell-swap:focus-visible { outline: 2px solid #c7aed9; outline-offset: 2px; }
 .spell-slot { min-width: 0; }
 .spell-slot__label { display: block; margin-bottom: 6px; font-size: 9px; color: #b7a3c5; }
 .spell-slot__button { width: 100%; min-height: 80px; display: flex; flex-direction: column; align-items: center; gap: 5px; position: relative; border: 1px solid #4c3a59; border-radius: 9px; background: #211a2b; padding: 9px 7px; color: #dbc9eb; }

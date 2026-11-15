@@ -39,6 +39,16 @@ mod tests {
     #[test]
     fn commands_and_assets_have_separate_narrow_routes() {
         assert!(allowed("PUT", "/settings", false));
+        assert!(allowed("GET", "/item-builder/catalog", false));
+        assert!(allowed("GET", "/item-builder/items/3078/icon", true));
+        assert!(!allowed("GET", "/item-builder/catalog", true));
+        assert!(allowed("PUT", "/item-sets", false));
+        assert!(allowed(
+            "POST",
+            "/item-sets/runepilot-11111111-1111-4111-8111-111111111111/export",
+            false
+        ));
+        assert!(!allowed("POST", "/item-sets/other/export", false));
         assert!(!allowed("PUT", "/settings", true));
         assert!(allowed("GET", "/champions/266/portrait", true));
         assert!(allowed("GET", "/champions/266/skins/266001/artwork", true));

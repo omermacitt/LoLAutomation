@@ -32,9 +32,9 @@ export function SkinGallery({ workspace: w, api, request }: Props) {
   const selected = data?.skins.find((skin) => skin.id === current)
   const families = skinFamilies(data)
   const detail = families.find((family) => family.skin.id === detailId)
-  const preview = detail
-    ? selected && (selected.id === detail.skin.id || selected.parent_skin_id === detail.skin.id) ? selected : detail.skin
-    : selected
+  const selectedFamily = families.find((family) => family.skin.id === selected?.id || family.skin.id === selected?.parent_skin_id)
+  const preview = detail?.skin ?? selectedFamily?.skin
+  const previewIsSelected = preview && (preview.id === selected?.id || preview.id === selected?.parent_skin_id)
   const roleName = roles.find((item) => item.key === role)!.name
   const disabled = !w.ready || resource.loading || Boolean(resource.error) || !data
   const nameOf = (skin: SkinOption) => skin.id === championId! * 1000 ? `Varsayılan ${champion?.name ?? ''}` : skin.name
@@ -118,8 +118,13 @@ export function SkinGallery({ workspace: w, api, request }: Props) {
               <h2 ref={heading} tabIndex={detail ? -1 : undefined}>{preview ? nameOf(preview) : 'Kayıtlı seçim korunuyor'}</h2>
               <p>{champion.name}<ChevronRight size={12} /><RoleIcon role={role} />{roleName}</p>
               <span className="skin-hero__status"><Check size={13} /><span>{!preview ? 'Yeni bir kostüm seç'
-                : preview.id !== current ? 'Önizleme · seçim yapılmadı'
+                : !previewIsSelected ? 'Önizleme · seçim yapılmadı'
                   : w.saveState.dirty || w.saveState.saving ? 'Kayıt bekleniyor' : 'Seçim hazır'}</span></span>
+            </div>
+            <div className="skin-hero__selection" role="status" aria-label="Seçili kostüm ve renk paketi">
+              <span>SEÇİLİ KOSTÜM</span>
+              <strong>{selectedFamily ? nameOf(selectedFamily.skin) : current !== undefined ? `Kullanılamayan kostüm (#${current})` : 'Kostüm seçilmedi'}</strong>
+              <small>{selected?.parent_skin_id ? `Renk paketi: ${selected.name}` : selected ? 'Renk paketi: Orijinal' : 'Renk paketi bilgisi yok'}</small>
             </div>
           </div>
 

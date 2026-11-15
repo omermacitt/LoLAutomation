@@ -7,6 +7,7 @@ const spellPairSchema = z.object({ spell1Id: z.number().int().nullable(), spell2
 export const catalogSchema = z.object({
   all_champions: z.array(championSchema).min(1),
   pickable_champions: z.array(championSchema),
+  role_champions: z.record(z.string(), z.array(z.number().int().positive())).nullable().optional(),
 })
 export const healthSchema = z.object({
   status: z.literal('ok'), running: z.boolean(), version: z.string(),
@@ -96,7 +97,7 @@ export type ChampionCatalog = z.infer<typeof catalogSchema>
 export type Health = z.infer<typeof healthSchema>
 export type Settings = z.infer<typeof settingsSchema>
 
-export interface PilotApi {
+export interface PilotApi extends Partial<import('./itemSets').ItemSetApi> {
   health(signal: AbortSignal): Promise<Health>
   settings(signal: AbortSignal): Promise<Settings>
   champions(signal: AbortSignal): Promise<ChampionCatalog>

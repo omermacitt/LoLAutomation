@@ -33,7 +33,7 @@ def sources():
     )
 
 
-def service_for(sources):
+def service_for(sources, positions=None):
     def icon(path):
         sources.icon_paths.append(path)
         return sources.icon
@@ -46,7 +46,40 @@ def service_for(sources):
         perk_styles=lambda: sources.styles,
         perks=lambda: sources.perks,
         perk_icon=icon,
+        champion_positions=positions,
     )
+
+
+def test_role_catalog_uses_client_positions_and_keeps_ownership_independent(sources):
+    catalog = service_for(
+        sources,
+        lambda: {
+            "266": {"recommendedPositions": ["TOP", "MIDDLE"]},
+            "1": {"recommendedPositions": ["MIDDLE", "UTILITY", "INVALID"]},
+            "2": {"recommendedPositions": ["JUNGLE"]},
+            "99999": {"recommendedPositions": ["TOP"]},
+        },
+    ).champion_catalog()
+    assert catalog.role_champions["TOP"] == [266]
+    assert catalog.role_champions["JUNGLE"] == [2]
+    assert catalog.role_champions["MIDDLE"] == [266, 1]
+    assert [c.id for c in catalog.pickable_champions] == [266, 1]
+
+
+@pytest.mark.parametrize("raw", [None, [], {}, {"266": {"recommendedPositions": "TOP"}}])
+def test_missing_role_data_never_guesses_positions_or_hides_owned_roster(sources, raw):
+    catalog = service_for(sources, lambda: raw).champion_catalog()
+    assert catalog.role_champions is None
+    assert [c.id for c in catalog.pickable_champions] == [266, 1]
+
+
+def test_role_source_failure_preserves_pickable_catalog(sources):
+    def unavailable():
+        raise RuntimeError("Client role data unavailable")
+
+    catalog = service_for(sources, unavailable).champion_catalog()
+    assert catalog.role_champions is None
+    assert [c.id for c in catalog.pickable_champions] == [266, 1]
 
 
 def test_catalog_separates_ban_and_pick_eligibility(sources):

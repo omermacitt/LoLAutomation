@@ -9,6 +9,8 @@ const methods: Record<string, string[]> = {
   '/api/stop_automation': ['POST'], '/api/session': ['GET'],
   '/api/automation/config': ['PUT'],
   '/api/runes/editor-catalog': ['GET'], '/api/runes/validate': ['POST'],
+  '/api/item-builder/catalog': ['GET'], '/api/item-sets': ['GET', 'PUT'],
+  '/api/item-sets/client-state': ['GET'],
 }
 function localApi(): Plugin {
   const token = randomUUID()
@@ -24,6 +26,8 @@ function localApi(): Plugin {
           return
         }
         const allowed = methods[path]
+          ?? (/^\/api\/item-builder\/(?:champions\/[1-9]\d*|items\/[1-9]\d*\/icon)$/.test(path) ? ['GET'] : undefined)
+          ?? (/^\/api\/item-sets\/runepilot-[a-f0-9-]{36}\/export$/.test(path) ? ['POST'] : undefined)
           ?? (/^\/api\/champions\/[1-9]\d*\/(portrait|runes\/recommended(?:\/(?:TOP|JUNGLE|MIDDLE|BOTTOM|UTILITY))?|skins(?:\/[1-9]\d*\/artwork)?)$/.test(path) || /^\/api\/runes\/icons\/[1-9]\d*$/.test(path) ? ['GET'] : undefined)
         if (!allowed) { response.writeHead(404).end(); return }
         if (!allowed.includes(request.method ?? '')) { response.writeHead(405, { Allow: allowed.join(', ') }).end(); return }
@@ -54,6 +58,10 @@ export default defineConfig({
   server: {
     host: '127.0.0.1', port: 5173, strictPort: true,
     proxy: {
+      '^/api/(item-builder/(catalog|champions/[1-9]\\d*|items/[1-9]\\d*/icon)|item-sets(/client-state|/runepilot-[a-f0-9-]{36}/export)?)$': {
+        target: 'http://127.0.0.1:8000', rewrite: (path) => path.replace(/^\/api/, ''),
+        timeout: 60_000, proxyTimeout: 60_000,
+      },
       '^/api/(health|settings|champion-catalog|start_automation|stop_automation|automation/config|champions/[1-9]\\d*/(portrait|runes/recommended(/(TOP|JUNGLE|MIDDLE|BOTTOM|UTILITY))?|skins(/[1-9]\\d*/artwork)?)|runes/(editor-catalog|validate|icons/[1-9]\\d*))$': {
         target: 'http://127.0.0.1:8000', rewrite: (path) => path.replace(/^\/api/, ''),
         timeout: 20_000, proxyTimeout: 20_000,

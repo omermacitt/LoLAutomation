@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { ArrowLeft, ArrowRight, Check, ChevronRight,
   CircleHelp, Crosshair, Layers3, LoaderCircle, RefreshCw, Search,
-  ShieldBan, Sparkles, TriangleAlert, Wifi, WifiOff, X } from 'lucide-react'
+  ShieldBan, ShoppingBag, Sparkles, TriangleAlert, Wifi, WifiOff, X } from 'lucide-react'
 import { apiClient } from './api/client'
 import type { PilotApi } from './api/contracts'
 import { ChampionArtwork } from './components/ChampionArtwork'
@@ -19,6 +19,7 @@ import { RuneWorkspace } from './features/runes/RuneWorkspace'
 import type { RuneRequest } from './features/runes/RuneWorkspace'
 import { RuneAlert } from './components/RuneAlert'
 import { SkinGallery } from './features/skins/SkinGallery'
+import { ItemWorkspace } from './features/items/ItemWorkspace'
 import type { SkinRequest } from './features/skins/SkinGallery'
 import './styles.css'
 import { useDesktopLifecycle } from './desktop/DesktopHost'
@@ -34,17 +35,22 @@ export default function App({ api = apiClient }: { api?: PilotApi }) {
   const { gridRef, columns, pageSize } = useGridPageSize()
   const [ownedOnly, setOwnedOnly] = useState(false)
   const [helpOpen, setHelpOpen] = useState(false)
-  const [section, setSection] = useState<'champions' | 'runes' | 'skins'>('champions')
+  const [section, setSection] = useState<'champions' | 'runes' | 'skins' | 'items'>('champions')
+  const [itemsOpened, setItemsOpened] = useState(false)
   const [runesOpened, setRunesOpened] = useState(false)
   const [runeRequest, setRuneRequest] = useState<RuneRequest>({ role: 'TOP', sequence: 0 })
   const [skinsOpened, setSkinsOpened] = useState(false)
   const [skinRequest, setSkinRequest] = useState<SkinRequest>({ role: 'TOP', sequence: 0 })
   const selectedRole = roles.find((item) => item.key === role)!
   const pickable = new Set(catalog.data?.pickable_champions.map((champion) => champion.id))
-  const source = catalog.data?.all_champions ?? []
+  const source = (target.kind === 'ban' ? catalog.data?.all_champions : catalog.data?.pickable_champions) ?? []
+  const roleDataAvailable = catalog.data?.role_champions != null
+  const roleFilterActive = ownedOnly && roleDataAvailable && target.kind === 'pick'
+  const roleIds = new Set(catalog.data?.role_champions?.[role] ?? [])
+  const roleCount = source.filter((champion) => roleIds.has(champion.id)).length
   const matches = source.filter((champion) =>
     champion.name.toLocaleLowerCase('tr').includes(search.trim().toLocaleLowerCase('tr'))
-    && (!ownedOnly || pickable.has(champion.id)))
+    && (!roleFilterActive || roleIds.has(champion.id)))
   const pages = Math.max(1, Math.ceil(matches.length / pageSize))
   const currentPage = Math.min(Math.floor(pageAnchor / pageSize), pages - 1)
   const visible = matches.slice(currentPage * pageSize, (currentPage + 1) * pageSize)
@@ -80,6 +86,7 @@ export default function App({ api = apiClient }: { api?: PilotApi }) {
         <button className={`nav-item ${section === 'champions' ? 'nav-item--active' : ''}`} aria-current={section === 'champions' ? 'page' : undefined} aria-label="Şampiyonlar" onClick={() => setSection('champions')}><SectionIcon section="champions" size={20} />Şampiyonlar{section === 'champions' && <span className="nav-item__indicator" />}</button>
         <button className={`nav-item ${section === 'runes' ? 'nav-item--active' : ''}`} aria-current={section === 'runes' ? 'page' : undefined} aria-label="Rünler" title={workspace.runeEditorDirty ? 'Kaydedilmemiş rün düzenlemesi var' : 'Rünlerini düzenle'} onClick={() => openRunes(target.kind === 'pick' ? activeId ?? undefined : picks.find((id) => id !== null) ?? undefined)}><SectionIcon section="runes" size={20} />Rünler{workspace.runeEditorDirty && <span className="nav-item__indicator" />}</button>
         <button className={`nav-item ${section === 'skins' ? 'nav-item--active' : ''}`} aria-current={section === 'skins' ? 'page' : undefined} aria-label="Kostümler" onClick={() => openSkins(target.kind === 'pick' ? activeId ?? undefined : picks.find((id) => id !== null) ?? undefined)}><SectionIcon section="skins" size={20} />Kostümler</button>
+        <button className={`nav-item ${section === 'items' ? 'nav-item--active' : ''}`} aria-current={section === 'items' ? 'page' : undefined} aria-label="Eşya Setleri" onClick={() => { setItemsOpened(true); setSection('items') }}><ShoppingBag size={20} />Eşya Setleri{workspace.itemEditorDirty && <span className="nav-item__indicator" />}</button>
       </nav>
       <div className="sidebar-note"><span className="sidebar-note__symbol">✦</span><span>Sen oyununa odaklan.<br /><strong>Hazırlık bizde.</strong></span></div>
       <div className="sidebar__bottom">
@@ -97,7 +104,7 @@ export default function App({ api = apiClient }: { api?: PilotApi }) {
     <main id="main" className={`main-content ${section === 'runes' ? 'main-content--runes' : ''}`}>
       <div id="desktop-update-panel" />
       <header className="topbar"><div className="breadcrumb"><Crosshair size={15} /><span>League of Legends</span><ChevronRight size={13} /><strong>Hazırlık</strong></div><span className="preview-badge"><span />Geliştirme sürümü</span></header>
-      <nav className="mobile-section-nav" aria-label="Görünüm"><button aria-label="Şampiyonlar" aria-pressed={section === 'champions'} onClick={() => setSection('champions')}><SectionIcon section="champions" size={16} />Şampiyonlar</button><button aria-label="Rünler" aria-pressed={section === 'runes'} onClick={() => openRunes(target.kind === 'pick' ? activeId ?? undefined : picks[0] ?? undefined)}><SectionIcon section="runes" size={16} />Rünler</button><button aria-label="Kostümler" aria-pressed={section === 'skins'} onClick={() => openSkins(target.kind === 'pick' ? activeId ?? undefined : picks[0] ?? undefined)}><SectionIcon section="skins" size={16} />Kostümler</button></nav>
+      <nav className="mobile-section-nav" aria-label="Görünüm"><button aria-label="Şampiyonlar" aria-pressed={section === 'champions'} onClick={() => setSection('champions')}><SectionIcon section="champions" size={16} />Şampiyonlar</button><button aria-label="Rünler" aria-pressed={section === 'runes'} onClick={() => openRunes(target.kind === 'pick' ? activeId ?? undefined : picks[0] ?? undefined)}><SectionIcon section="runes" size={16} />Rünler</button><button aria-label="Kostümler" aria-pressed={section === 'skins'} onClick={() => openSkins(target.kind === 'pick' ? activeId ?? undefined : picks[0] ?? undefined)}><SectionIcon section="skins" size={16} />Kostümler</button><button aria-label="Eşya Setleri" aria-pressed={section === 'items'} onClick={() => { setItemsOpened(true); setSection('items') }}><ShoppingBag size={16} />Eşya Setleri</button></nav>
       <div hidden={section !== 'champions'}>
       <section className="page-heading" aria-labelledby="page-title">
         <div><p className="eyebrow">SENİN HAVUZUN. SENİN OYUNUN.</p><h1 id="page-title">Bir adım önde başla<span>.</span></h1><p className="page-heading__description">Şampiyonlarını belirle, seçim sırasını oluştur. Gerisini akışına bırak.</p></div>
@@ -111,7 +118,7 @@ export default function App({ api = apiClient }: { api?: PilotApi }) {
         <div className="automation-state"><span className={health.data?.running ? 'status-dot status-dot--live' : 'status-dot'} />{health.data?.running ? 'Otomasyon çalışıyor' : health.data ? 'Otomasyon beklemede' : 'Durum bilinmiyor'}</div>
       </section>
 
-      <nav className="role-switcher" aria-label="Roller">{roles.map((item) => <button key={item.key} className={`role-button ${role === item.key ? 'role-button--active' : ''}`} aria-pressed={role === item.key} onClick={() => workspace.setRole(item.key)}><RoleIcon role={item.key} /><span>{item.name}</span><span className="role-button__short">{item.short}</span></button>)}</nav>
+      <nav className="role-switcher" aria-label="Roller">{roles.map((item) => <button key={item.key} className={`role-button ${role === item.key ? 'role-button--active' : ''}`} aria-pressed={role === item.key} onClick={() => { workspace.setRole(item.key); setPageAnchor(0) }}><RoleIcon role={item.key} /><span>{item.name}</span><span className="role-button__short">{item.short}</span></button>)}</nav>
 
       {errors.length > 0 && <div className="error-banner" role="alert"><TriangleAlert size={19} /><div><strong>Veriler henüz hazır değil</strong>{errors.map((error) => <p key={error}>{error}</p>)}</div><button className="button button--secondary" disabled={busy} onClick={workspace.retry}>Tekrar dene</button></div>}
 
@@ -119,7 +126,8 @@ export default function App({ api = apiClient }: { api?: PilotApi }) {
         <section className="catalog-panel" aria-labelledby="catalog-title" aria-busy={catalog.loading}>
           <div className="panel-heading"><h3 id="catalog-title">Şampiyon havuzu <span>{hasCatalog ? source.length : '—'}</span></h3><span className={`mode-label ${target.kind === 'ban' ? 'mode-label--ban' : ''}`}>{target.kind === 'ban' ? <ShieldBan size={13} /> : <Crosshair size={13} />}{target.kind === 'ban' ? 'Yasaklama' : `${target.index + 1}. tercih seçiliyor`}</span></div>
           <div className="catalog-tools"><label className="search-field"><Search size={17} /><input aria-label="Şampiyon ara" placeholder="Şampiyon ara…" value={search} onChange={(event) => { setSearch(event.target.value); setPageAnchor(0) }} />{search && <button aria-label="Aramayı temizle" onClick={() => { setSearch(''); setPageAnchor(0) }}><X size={14} /></button>}<span className="search-hint">ARA</span></label></div>
-          <div className="catalog-filter"><button className={!ownedOnly ? 'filter-button filter-button--active' : 'filter-button'} aria-pressed={!ownedOnly} onClick={() => { setOwnedOnly(false); setPageAnchor(0) }}>Tüm şampiyonlar</button><button className={ownedOnly ? 'filter-button filter-button--active' : 'filter-button'} aria-pressed={ownedOnly} onClick={() => { setOwnedOnly(true); setPageAnchor(0) }}>Seçilebilir <span>{catalog.data?.pickable_champions.length ?? '—'}</span></button></div>
+          <div className="catalog-filter"><button className={!roleFilterActive ? 'filter-button filter-button--active' : 'filter-button'} aria-pressed={!roleFilterActive} onClick={() => { setOwnedOnly(false); setPageAnchor(0) }}>Tüm şampiyonlar</button><button className={roleFilterActive ? 'filter-button filter-button--active' : 'filter-button'} aria-pressed={roleFilterActive} disabled={!roleDataAvailable || target.kind === 'ban'} onClick={() => { setOwnedOnly(true); setPageAnchor(0) }}>Seçilebilir <span>{roleDataAvailable ? roleCount : '—'}</span></button></div>
+          {hasCatalog && <p className="catalog-filter-note">{target.kind === 'ban' ? 'Yasaklama için rakibin seçebileceği tüm şampiyonlar gösterilir.' : !roleDataAvailable ? 'Koridor bilgisi alınamadı. Hesabında seçilebilir şampiyonlar gösteriliyor; listeyi yenileyebilirsin.' : ownedOnly ? `${selectedRole.name}: League istemcisinin önerdiği koridor şampiyonları.` : 'Sahip olduğun ve ücretsiz rotasyonda seçebildiğin şampiyonlar. Koridor dışı tercihler için bu listeyi kullan.'}</p>}
 
           <div ref={gridRef} className={`champion-grid ${!hasCatalog && catalog.loading ? 'skeleton-grid' : ''}`} style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }} aria-label={catalog.loading ? 'Şampiyonlar yükleniyor' : undefined}>
           {!hasCatalog && catalog.loading ? Array.from({ length: pageSize }, (_, index) => <div className="skeleton-card" key={index}><span /><i /></div>)
@@ -153,9 +161,10 @@ export default function App({ api = apiClient }: { api?: PilotApi }) {
       </div>
       {runesOpened && <div hidden={section !== 'runes'}><RuneWorkspace workspace={workspace} api={api} request={runeRequest} /></div>}
       {skinsOpened && <div hidden={section !== 'skins'}><SkinGallery workspace={workspace} api={api} request={skinRequest} /></div>}
+      {itemsOpened && <div hidden={section !== 'items'}><ItemWorkspace api={api} defaultChampion={picks[0] ?? undefined} onDirty={workspace.setItemEditorDirty} /></div>}
       {workspace.ended && <div className="success-banner" role="status">Ayarlar kaydedildi ve otomasyon durduruldu. Bu pencereyi kapatabilirsin.</div>}
       {(workspace.actionError || workspace.automation.error) && <div className="error-banner" role="alert"><TriangleAlert size={18} /><p>{workspace.actionError || workspace.automation.error}</p></div>}
-      <SaveFooter workspace={workspace} compact={section === 'runes'} />
+      <SaveFooter workspace={workspace} compact={section === 'runes' || section === 'items'} />
       {section !== 'runes' && <div className="page-footer"><span>R U N E P I L O T</span><span>İyi bir oyun, iyi bir hazırlıkla başlar.</span></div>}
     </main>
   </div></>

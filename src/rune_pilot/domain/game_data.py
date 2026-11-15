@@ -14,6 +14,7 @@ class ChampionOption(BaseModel):
 class ChampionCatalog(BaseModel):
     all_champions: list[ChampionOption] = Field(min_length=1)
     pickable_champions: list[ChampionOption]
+    role_champions: dict[str, list[int]] | None = None
 
 
 class GameflowStatus(BaseModel):

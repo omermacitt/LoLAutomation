@@ -20,6 +20,17 @@
 .skin-hero p { display:flex; gap:9px; align-items:center; color:#d0bbdf; font-size:11px; }
 .skin-hero p > svg { width:15px; }
 .skin-hero__status { display:flex; align-items:center; gap:6px; border:1px solid #c9b39450; border-radius:20px; padding:7px 11px; background:#16111b8c; color:#d6c4ac; font-size:9px; margin-top:18px; }
+.skin-hero__selection { position:absolute; right:18px; bottom:18px; max-width:43%; display:flex; flex-direction:column; gap:5px; padding:12px 15px; border:1px solid #bda0d250; border-radius:10px; background:#17101be8; color:#eee1f7; overflow-wrap:anywhere; }
+.skin-hero__selection > span { font-size:9px; letter-spacing:1px; color:#c7aed9; }
+.skin-hero__selection > strong { font-size:13px; line-height:1.4; }
+.skin-hero__selection > small { font-size:11px; line-height:1.4; color:#d0bbdf; }
+.skin-hero:has(.skin-hero__selection) h2 { max-width:52%; }
+@media (max-width:760px) {
+  .skin-gallery .skin-hero { height:auto; min-height:350px; display:flex; flex-direction:column; justify-content:flex-end; }
+  .skin-gallery .skin-hero__content { position:relative; inset:auto; padding:22px 22px 14px; }
+  .skin-gallery .skin-hero h2 { max-width:100%; }
+  .skin-hero__selection { position:relative; right:auto; bottom:auto; align-self:flex-end; max-width:calc(100% - 36px); margin:0 18px 18px; }
+}
 .skin-collection-header { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:20px; }
 .skin-collection-header h3 { display:flex; align-items:center; gap:10px; font-size:18px; font-weight:500; margin-top:9px; }
 .skin-collection-header h3 > span { color:#cab0db; background:#34283f; border:1px solid #503a60; border-radius:5px; font-size:10px; padding:3px 6px; }

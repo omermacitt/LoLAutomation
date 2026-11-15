@@ -73,7 +73,7 @@ export function DesktopHost({ children }: { children: ReactNode }) {
       closing.current = true
       try {
         if (closeGuard && !await closeGuard()) {
-          setNotice('Çıkış tamamlanmadı. Açık rün düzenlemesini kaydet veya geri al; bağlantı ve kayıt hatalarını giderip tekrar kapat.')
+            setNotice('Çıkış tamamlanmadı. Açık rün veya eşya seti düzenlemesini kaydet veya geri al; aktarım, bağlantı ve kayıt işlemlerini tamamlayıp tekrar kapat.')
           return
         }
         await invoke('desktop_close')
