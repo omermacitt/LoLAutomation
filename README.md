@@ -34,6 +34,9 @@ remains manual. The **PyQt6** entry remains available as a development fallback.
 
 - Three prioritized champion picks and one ban per role. A champion can appear
   only once in a role's pick list; different roles are independent.
+- Champion picks show owned/free-to-play choices. The role filter uses League
+  Client position recommendations; the full available list permits off-role
+  choices. Bans retain the full roster.
 - Normal Draft, Ranked Solo/Duo and Ranked Flex queue selection, with primary
   and secondary role preferences, matchmaking and ready-check acceptance while
   automation is running.
@@ -50,6 +53,10 @@ remains manual. The **PyQt6** entry remains available as a development fallback.
   does not change the saved selection.
 - Ordered settings saves, conflict detection between windows, explicit Start/Stop
   controls and recovery after failed requests.
+- Item sets with searchable item icons, named blocks and a six-slot level 1–18
+  stat preview. Only base/level stats and direct item bonuses are counted; passives,
+  stacks, runes and conditional effects are excluded. Save locally, then explicitly
+  export a set to the connected League Client while preserving its other sets.
 - System tray support, optional Windows toast notifications and configurable
   GitHub release updates in the PyQt6 desktop client.
 
@@ -155,6 +162,7 @@ is created.
 | User settings | `%APPDATA%\RunePilot\user_config.json` |
 | Desktop application log | `%APPDATA%\RunePilot\run_app.log` |
 | Rune recommendations | Running League Client; champion + assigned role, Summoner's Rift |
+| Item builder data | Riot Data Dragon items filtered by same-patch CommunityDragon CLASSIC shop lists; CommunityDragon champion stats; internet required |
 | League Client lockfile | Common install paths, or `LOL_LOCKFILE` / `LOL_LOCKFILE_PATH` |
 
 Use one backend process for the profile. Settings writes are atomic and current

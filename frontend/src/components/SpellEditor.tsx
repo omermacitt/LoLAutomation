@@ -1,6 +1,6 @@
 import { useEffect, useId, useRef, useState } from 'react'
-import { Check, ChevronDown, X, Zap } from 'lucide-react'
-import { spells } from '../features/automation/config'
+import { ArrowLeftRight, Check, ChevronDown, X, Zap } from 'lucide-react'
+import { spellPair, spells } from '../features/automation/config'
 import { roles } from '../features/champions/selection'
 import type { useChampionWorkspace } from '../features/champions/useChampionWorkspace'
 import { SpellIcon } from './SpellIcon'
@@ -15,19 +15,20 @@ const spellName = (id: number | null | undefined) => spells.find((spell) => spel
 export function SpellEditor({ workspace: w }: { workspace: ReturnType<typeof useChampionWorkspace> }) {
   if (w.target.kind !== 'pick') return null
   const id = w.draft?.role_champions_ui[w.role]?.[w.target.index]
-  const pair = id == null ? undefined : w.draft?.custom_summoner_spells[w.role]?.[String(id)]
+  const pair = id == null || !w.draft ? undefined : spellPair(w.draft, w.role, id)
   const available = id != null && w.catalog.data?.pickable_champions.some((champion) => champion.id === id)
   const champion = w.catalog.data?.all_champions.find((item) => item.id === id)
   // Changing role, preference or champion removes any open picker for the old target.
   return <SpellPicker key={`${w.role}:${w.target.index}:${id}`} pair={pair}
     disabled={!w.ready || !available} preference={w.target.index + 1}
     context={`${roles.find((role) => role.key === w.role)?.name ?? w.role} · ${champion?.name ?? 'Şampiyon seçilmedi'}`}
-    onChange={w.changeSpell} />
+    onChange={w.changeSpell} onSwap={w.swapSpellSlots} />
 }
 
-function SpellPicker({ pair, disabled, preference, context, onChange }: {
+function SpellPicker({ pair, disabled, preference, context, onChange, onSwap }: {
   pair?: Pair; disabled: boolean; preference: number; context: string;
   onChange: (slot: Slot, spell: number | null) => void;
+  onSwap: () => void;
 }) {
   const [active, setActive] = useState<Slot | null>(null)
   const dialog = useRef<HTMLDialogElement>(null)
@@ -74,6 +75,10 @@ function SpellPicker({ pair, disabled, preference, context, onChange }: {
           </button>
         </div>
       })}
+      <button className="spell-swap" aria-label="Büyülerin yerini değiştir" title="Büyülerin yerini değiştir"
+        disabled={disabled || (pair?.spell1Id ?? null) === (pair?.spell2Id ?? null)} onClick={onSwap}>
+        <ArrowLeftRight size={17} aria-hidden="true" />
+      </button>
     </div>
     <dialog ref={dialog} className="spell-picker" aria-labelledby={titleId} aria-describedby={descriptionId}
       onKeyDown={(event) => {

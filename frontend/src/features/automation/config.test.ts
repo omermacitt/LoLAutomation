@@ -1,8 +1,35 @@
 import { describe, expect, it } from 'vitest'
 import { catalog, settings } from '../../test/fixtures'
-import { automationIssues, autofillWarnings, automationPayload, movePick, selectChampion, setSpell } from './config'
+import { automationIssues, autofillWarnings, automationPayload, movePick, selectChampion, setSpell, spellPair, swapSpells } from './config'
 
 describe('selection to automation contract', () => {
+  it('defaults every unconfigured jungle pick to flash-smite without replacing saved choices', () => {
+    const config = structuredClone(settings)
+    config.role_champions_ui.JUNGLE = [266, 86, 122]
+    config.custom_summoner_spells.JUNGLE = { '86': { spell1Id: 11, spell2Id: 6 }, '122': { spell1Id: null, spell2Id: null } }
+    expect(spellPair(config, 'JUNGLE', 266)).toEqual({ spell1Id: 4, spell2Id: 11 })
+    const payload = automationPayload(config, catalog)
+    expect(payload.custom_summoner_spells.JUNGLE).toEqual({
+      '266': { spell1Id: 4, spell2Id: 11 }, '86': { spell1Id: 11, spell2Id: 6 }, '122': { spell1Id: null, spell2Id: null },
+    })
+    expect(config.custom_summoner_spells.JUNGLE['266']).toBeUndefined()
+    expect(spellPair(config, 'TOP', 266)).toEqual({ spell1Id: null, spell2Id: null })
+    const selected = selectChampion(config, 'JUNGLE', { kind: 'pick', index: 0 }, 103)
+    expect(selected.custom_summoner_spells.JUNGLE['103']).toEqual({ spell1Id: 4, spell2Id: 11 })
+  })
+
+  it('swaps both slots atomically, keeps role isolation and respects explicit empty slots', () => {
+    const config = structuredClone(settings)
+    config.custom_summoner_spells.TOP = { '266': { spell1Id: 4, spell2Id: 14 } }
+    const swapped = swapSpells(config, 'JUNGLE', 266)
+    expect(swapped.custom_summoner_spells.JUNGLE['266']).toEqual({ spell1Id: 11, spell2Id: 4 })
+    expect(swapped.custom_summoner_spells.TOP).toEqual(config.custom_summoner_spells.TOP)
+    expect(config.custom_summoner_spells.JUNGLE).toBeUndefined()
+    expect(swapSpells(swapped, 'JUNGLE', 266).custom_summoner_spells.JUNGLE['266']).toEqual({ spell1Id: 4, spell2Id: 11 })
+    const cleared = setSpell(swapped, 'JUNGLE', 266, 'spell1Id', null)
+    expect(swapSpells(cleared, 'JUNGLE', 266).custom_summoner_spells.JUNGLE['266']).toEqual({ spell1Id: 4, spell2Id: null })
+    expect(setSpell(config, 'JUNGLE', 266, 'spell1Id', 6).custom_summoner_spells.JUNGLE['266']).toEqual({ spell1Id: 6, spell2Id: 11 })
+  })
   it('preserves unavailable saved choices but omits them from the runtime payload', () => {
     const config = { ...settings, role_champions_ui: { TOP: [999999, 266, 266] }, custom_runes: { '266': { '1': { name: 'keep' } } }, custom_skins: { TOP: { '266': 266001 } } }
     const payload = automationPayload(config, catalog)

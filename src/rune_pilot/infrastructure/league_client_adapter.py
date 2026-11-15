@@ -11,11 +11,23 @@ class LcuLeagueClient:
     def __init__(self, request: Callable = lcu_request):
         self._request = request
 
+    def current_summoner(self) -> ClientReply:
+        return self._request("GET", "/lol-summoner/v1/current-summoner")
+
+    def item_sets(self, summoner_id: int) -> ClientReply:
+        return self._request("GET", f"/lol-item-sets/v1/item-sets/{int(summoner_id)}/sets")
+
+    def replace_item_sets(self, summoner_id: int, payload: dict) -> ClientReply:
+        return self._request("PUT", f"/lol-item-sets/v1/item-sets/{int(summoner_id)}/sets", payload)
+
     def champion_summary(self) -> ClientReply:
         return self._request("GET", "/lol-game-data/assets/v1/champion-summary.json")
 
     def owned_champions(self) -> ClientReply:
         return self._request("GET", "/lol-champions/v1/owned-champions-minimal")
+
+    def champion_positions(self) -> ClientReply:
+        return self._request("GET", "/lol-perks/v1/recommended-champion-positions")
 
     def champion_data(self, champion_id: int) -> ClientReply:
         return self._request("GET", f"/lol-game-data/assets/v1/champions/{int(champion_id)}.json")

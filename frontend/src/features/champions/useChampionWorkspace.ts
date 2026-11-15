@@ -4,7 +4,7 @@ import type { RoleKey, Target } from './selection'
 import { initialRole } from './selection'
 import { SettingsWriter } from '../settings/SettingsWriter'
 import { AutomationController } from '../automation/AutomationController'
-import { automationIssues, automationPayload, movePick, queues, roleKey, selectChampion, setSpell } from '../automation/config'
+import { automationIssues, automationPayload, movePick, queues, roleKey, selectChampion, setSpell, swapSpells } from '../automation/config'
 import { assignPreset, hasPreset, preset, restorePreset, withPreset, withoutPreset } from '../runes/model'
 import type { PresetSlot } from '../runes/model'
 import { withSkin } from '../skins/model'
@@ -37,6 +37,7 @@ export function useChampionWorkspace(api: PilotApi) {
   const [ended, setEnded] = useState(false)
   const [actionError, setActionError] = useState<string>()
   const [runeEditorDirty, setRuneEditorDirty] = useState(false)
+  const [itemEditorDirty, setItemEditorDirty] = useState(false)
   const [runeBusy, setRuneBusy] = useState(false)
   const generation = useRef(0)
   const settingsRef = useRef<Settings | undefined>(undefined)
@@ -127,6 +128,12 @@ export function useChampionWorkspace(api: PilotApi) {
     if (id == null || !catalog.data?.pickable_champions.some((champion) => champion.id === id)) return
     writer.edit((config) => setSpell(config, role, id, slot, spell))
   }
+  const swapSpellSlots = () => {
+    if (!editable || target.kind !== 'pick' || actionGate.current) return
+    const id = saveState.draft?.role_champions_ui[role]?.[target.index]
+    if (id == null || !catalog.data?.pickable_champions.some((champion) => champion.id === id)) return
+    writer.edit((config) => swapSpells(config, role, id))
+  }
   const changeSkin = (skinRole: RoleKey, id: number, skinId: number, options: SkinOptions) => {
     if (!editable || actionGate.current || !catalog.data?.all_champions.some((champion) => champion.id === id)) return
     writer.edit((config) => withSkin(config, skinRole, id, skinId, options))
@@ -140,6 +147,7 @@ export function useChampionWorkspace(api: PilotApi) {
   }
 
   const start = async () => {
+    if (itemEditorDirty) { setActionError('Önce eşya setini kaydet veya düzenlemeyi geri al.'); return }
     if (!editable || !catalog.data || actionGate.current || !automation.health || automation.busy) return
     if (runeEditorDirty) { setActionError('Önce rün editöründeki düzenlemeleri kaydet veya geri al.'); return }
     const draft = writer.getSnapshot().draft
@@ -163,6 +171,7 @@ export function useChampionWorkspace(api: PilotApi) {
     try { await engine.stop() } catch (error) { if (mounted.current) setActionError(message(error)) }
   }
   const finish = async () => {
+    if (itemEditorDirty) { setActionError('Kaydedilmemiş eşya seti var. Eşya Setleri sekmesinden kaydet veya düzenlemeyi geri al.'); return false }
     if (ended) return true
     if (actionGate.current || closing || automation.busy) return false
     if (runeEditorDirty) { setActionError('Kaydedilmemiş rün düzenlemeleri var. Önce rün editöründen kaydet veya geri al.'); return false }
@@ -270,6 +279,7 @@ export function useChampionWorkspace(api: PilotApi) {
     setClosing(false)
   }
   const prepareUpdate = async () => {
+    if (itemEditorDirty) { setActionError('Güncellemeden önce eşya setini kaydet veya düzenlemeyi geri al.'); return false }
     if (actionGate.current || closing || ended || runeBusy || automation.busy) return false
     if (runeEditorDirty) {
       setActionError('Güncellemeden önce rün düzenlemelerini kaydet veya geri al.')
@@ -306,7 +316,7 @@ export function useChampionWorkspace(api: PilotApi) {
     if (epoch !== commandEpoch.current) throw new Error('Bağlantı değişti. Yeniden bağlanıp çıkışı tekrar dene.')
   }
 
-  const needsGuard = saveState.dirty || saveState.saving || preparing || closing || runeBusy || runeEditorDirty
+  const needsGuard = saveState.dirty || saveState.saving || preparing || closing || runeBusy || runeEditorDirty || itemEditorDirty
     || (!ended && (automation.health?.running === true || Boolean(automation.busy) || !automation.health))
   useEffect(() => {
     if (!needsGuard) return
@@ -319,8 +329,8 @@ export function useChampionWorkspace(api: PilotApi) {
   return { health, settings, catalog, draft: saveState.draft, role, setRole, target, setTarget,
     ready: editable, dirty: saveState.dirty, saveState, automation, preparing, closing, ended,
     portraitRetryKey: attempt,
-    runeBusy, runeEditorDirty, setRuneEditorDirty, saveRunePreset, deleteRunePreset, discardRunePreset, selectRunePreset, canDiscardRunePreset,
-    actionError, choose, editSettings, changeSpell, changeSkin, reorder, start, stop, finish, recoverFinish, reloadSettings, apply, suspendConnection, resumeConnection, prepareUpdate, cancelUpdate,
+    runeBusy, runeEditorDirty, setRuneEditorDirty, itemEditorDirty, setItemEditorDirty, saveRunePreset, deleteRunePreset, discardRunePreset, selectRunePreset, canDiscardRunePreset,
+    actionError, choose, editSettings, changeSpell, swapSpellSlots, changeSkin, reorder, start, stop, finish, recoverFinish, reloadSettings, apply, suspendConnection, resumeConnection, prepareUpdate, cancelUpdate,
     save: () => { void writer.flush().catch(() => {}) }, reset: () => { writer.reset(); failedRuneRoles.current.clear(); failedRuneDeletes.current.clear() },
     retry: () => { setAttempt((value) => value + 1); void engine.check() } }
 }

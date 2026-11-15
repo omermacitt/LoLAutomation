@@ -73,6 +73,14 @@ class ChampionQuery:
     def get_owned_champions_raw(self, *, strict: bool = False) -> list[dict[str, Any]]:
         return self._read_list(self._client.owned_champions, strict=strict)
 
+    def get_champion_positions(self) -> dict:
+        response = self._client.champion_positions()
+        response.raise_for_status()
+        data = response.json()
+        if not isinstance(data, dict) or not data:
+            raise ValueError("Champion positions unavailable")
+        return data
+
     def load_champions_map(self) -> dict[int, dict[str, Any]]:
         try:
             response = self._client.owned_champions()

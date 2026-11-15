@@ -79,10 +79,10 @@ class ConfigRepository:
                 continue
         return None
 
-    def read(self) -> dict[str, Any]:
+    def read(self, *, strict: bool = False) -> dict[str, Any]:
         """Settings and unrelated keys, excluding removed saved accounts."""
         with self._lock:
-            data = self._read_unlocked()
+            data = self._read_unlocked(strict=strict)
             data.pop("accounts", None)
             return data
 
@@ -142,7 +142,7 @@ class ConfigRepository:
                                 success = False
         return success
 
-    def _read_unlocked(self) -> dict[str, Any]:
+    def _read_unlocked(self, *, strict: bool = False) -> dict[str, Any]:
         path = self.resolve_read_path()
         if not path:
             return {}
@@ -152,13 +152,17 @@ class ConfigRepository:
         except FileNotFoundError:
             return {}
         except (OSError, ValueError) as e:
+            if strict:
+                raise ValueError("Profile could not be read safely") from e
             # A corrupt file must not take the app down, but silently continuing from
             # {} would let the next save overwrite it, so say so loudly.
             print(f"[CONFIG] Could not read {path}: {e}")
             return {}
+        if strict and not isinstance(data, dict):
+            raise ValueError("Invalid profile document")
         return data if isinstance(data, dict) else {}
 
-    def update(self, mutate: Callable[[dict[str, Any]], None]) -> bool:
+    def update(self, mutate: Callable[[dict[str, Any]], None], *, strict: bool = False) -> bool:
         """
         Applies `mutate` to the current config and writes the result atomically.
 
@@ -167,7 +171,7 @@ class ConfigRepository:
         its keys dropped. `mutate` must change only the keys its caller owns.
         """
         with self._lock:
-            data = self._read_unlocked()
+            data = self._read_unlocked(strict=strict)
             try:
                 mutate(data)
             except Exception as e:

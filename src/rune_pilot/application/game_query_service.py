@@ -4,6 +4,7 @@ from collections.abc import Callable
 from typing import Any
 
 from rune_pilot.domain.champion_service import is_mode_champion_variant
+from rune_pilot.domain.constants import ROLE_KEYS
 from rune_pilot.domain.game_data import (
     ChampionCatalog,
     ChampionOption,
@@ -30,6 +31,7 @@ class GameQueryService:
         perk_styles: Callable[[], list[dict[str, Any]]],
         perks: Callable[[], list[dict[str, Any]]],
         perk_icon: Callable[[str], bytes | None],
+        champion_positions: Callable[[], dict] | None = None,
     ):
         self._champion_summary = champion_summary
         self._owned_champions = owned_champions
@@ -38,6 +40,7 @@ class GameQueryService:
         self._perk_styles = perk_styles
         self._perks = perks
         self._perk_icon = perk_icon
+        self._champion_positions = champion_positions
 
     def champion_catalog(self) -> ChampionCatalog:
         try:
@@ -45,7 +48,32 @@ class GameQueryService:
             pickable = self._champion_options(self._owned_champions(), owned_only=True)
             if not all_champions:
                 raise ValueError("empty champion summary")
-            return ChampionCatalog(all_champions=all_champions, pickable_champions=pickable)
+            role_champions = None
+            if self._champion_positions is not None:
+                try:
+                    positions = self._champion_positions()
+                    if not isinstance(positions, dict) or not positions:
+                        raise ValueError("Missing positions")
+                    grouped = {role: [] for role in ROLE_KEYS}
+                    for champion in all_champions:
+                        entry = positions.get(str(champion.id), {})
+                        values = (
+                            entry.get("recommendedPositions", []) if isinstance(entry, dict) else []
+                        )
+                        if not isinstance(values, list):
+                            continue
+                        for role in ROLE_KEYS:
+                            if role in values:
+                                grouped[role].append(champion.id)
+                    if any(grouped.values()):
+                        role_champions = grouped
+                except Exception:
+                    pass  # Ownership remains usable; the UI reports unavailable role data.
+            return ChampionCatalog(
+                all_champions=all_champions,
+                pickable_champions=pickable,
+                role_champions=role_champions,
+            )
         except Exception as e:
             raise QueryUnavailable("Could not load champions from League Client") from e
 

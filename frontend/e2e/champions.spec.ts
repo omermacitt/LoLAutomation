@@ -57,6 +57,69 @@ async function mockBackend(page: Page, complete = false, roster: ChampionCatalog
   return state
 }
 
+test('owned roster and client role filter separate Darius from Jhin and retain off-role choice and bans', async ({ page }) => {
+  const jhin = { id: 202, name: 'Jhin' }
+  const roster: ChampionCatalog = { ...structuredClone(catalog), all_champions: [...catalog.all_champions, jhin], pickable_champions: [...catalog.pickable_champions, jhin],
+    role_champions: { TOP: [122, 266], JUNGLE: [32], MIDDLE: [103], BOTTOM: [202], UTILITY: [12] } }
+  const backend = await mockBackend(page, false, roster)
+  await page.goto('/')
+  const search = page.getByRole('textbox', { name: 'Şampiyon ara' })
+  const filter = page.getByRole('button', { name: /^Seçilebilir/ })
+  await expect(filter).toBeEnabled()
+  await search.fill('Akali')
+  await expect(page.getByRole('button', { name: 'Akali seç', exact: true })).toHaveCount(0)
+  await search.fill('Jhin')
+  await expect(page.getByRole('button', { name: 'Jhin seç', exact: true })).toBeEnabled()
+  await filter.click()
+  await expect(page.getByRole('button', { name: 'Jhin seç', exact: true })).toHaveCount(0)
+  await search.fill('Darius')
+  await expect(page.getByRole('button', { name: 'Darius seç', exact: true })).toBeVisible()
+  await page.getByRole('button', { name: /^Alt koridor/ }).click()
+  await search.fill('Jhin')
+  await expect(page.getByRole('button', { name: 'Jhin seç', exact: true })).toBeEnabled()
+  await page.getByRole('button', { name: /^Üst koridor/ }).click()
+  await expect(page.getByRole('button', { name: 'Jhin seç', exact: true })).toHaveCount(0)
+  await page.getByRole('button', { name: 'Tüm şampiyonlar', exact: true }).click()
+  await page.getByRole('button', { name: 'Jhin seç', exact: true }).click()
+  await expect.poll(() => backend.saved.role_champions_ui.TOP[0]).toBe(202)
+  await filter.click()
+  roster.role_champions = null
+  await page.getByRole('button', { name: 'Listeyi yenile', exact: true }).click()
+  await expect(filter).toBeDisabled()
+  await expect(filter).toHaveAttribute('aria-pressed', 'false')
+  await expect(page.getByRole('button', { name: 'Tüm şampiyonlar', exact: true })).toHaveAttribute('aria-pressed', 'true')
+  await expect(page.getByText('Koridor bilgisi alınamadı.', { exact: false })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Jhin seç', exact: true })).toBeEnabled()
+  await page.getByRole('button', { name: 'Yasaklama: Akali', exact: true }).click()
+  await search.fill('Akali')
+  await expect(page.getByRole('button', { name: 'Akali yasakla', exact: true })).toBeEnabled()
+  expect(backend.starts).toHaveLength(0)
+})
+
+test('jungle defaults to flash-smite and keyboard swap persists only that role and champion', async ({ page }, info) => {
+  const backend = await mockBackend(page)
+  backend.saved.primary_role_name = 'Jungle'
+  backend.saved.role_champions_ui.JUNGLE = [266, 86, null]
+  backend.saved.custom_summoner_spells = { TOP: { '266': { spell1Id: 4, spell2Id: 14 } }, JUNGLE: { '86': { spell1Id: 11, spell2Id: 6 } } }
+  await page.goto('/')
+  await expect(page.getByRole('button', { name: 'Birinci büyü: Sıçra', exact: true })).toBeEnabled()
+  await expect(page.getByRole('button', { name: 'İkinci büyü: Çarp', exact: true })).toBeVisible()
+  expect(backend.saves).toBe(0)
+  const swap = page.getByRole('button', { name: 'Büyülerin yerini değiştir', exact: true })
+  await swap.focus(); await swap.press('Enter')
+  await expect(page.getByRole('button', { name: 'Birinci büyü: Çarp', exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'İkinci büyü: Sıçra', exact: true })).toBeVisible()
+  await expect.poll(() => backend.saved.custom_summoner_spells.JUNGLE?.['266']).toEqual({ spell1Id: 11, spell2Id: 4 })
+  expect(backend.saves).toBe(1)
+  expect(backend.saved.custom_summoner_spells.TOP['266']).toEqual({ spell1Id: 4, spell2Id: 14 })
+  expect(backend.saved.custom_summoner_spells.JUNGLE['86']).toEqual({ spell1Id: 11, spell2Id: 6 })
+  await page.locator('.spell-editor').screenshot({ path: info.outputPath('spell-swap.png') })
+  await page.reload()
+  await expect(page.getByRole('button', { name: 'Birinci büyü: Çarp', exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'İkinci büyü: Sıçra', exact: true })).toBeVisible()
+  expect(backend.starts).toHaveLength(0)
+})
+
 test('icon spell picker loads local artwork, blocks duplicate choices and keeps role settings independent', async ({ page }, info) => {
   const backend = await mockBackend(page)
   backend.saved.role_champions_ui.MIDDLE = [266, null, null]
@@ -175,7 +238,7 @@ test('saves picks, bans and spells; restores them after reload and fits the view
   const backend = await mockBackend(page)
   await page.goto('/')
   await expect(page.getByRole('button', { name: '1. tercih: Aatrox', exact: true })).toBeEnabled()
-  await expect(page.getByRole('button', { name: 'Akali seç', exact: true })).toBeDisabled()
+  await expect(page.getByRole('button', { name: 'Akali seç', exact: true })).toHaveCount(0)
   await expect(page.getByText('Ayarlar güncel', { exact: true })).toBeVisible()
   await expect(page.getByRole('button', { name: 'Hesaplar', exact: true })).toHaveCount(0)
   await expect(page.locator('input[type="password"]')).toHaveCount(0)
@@ -357,7 +420,8 @@ test('proxy rejects untrusted writes, origins and unrelated endpoints', async ({
 })
 
 test('renders three full rows per page, including after resize and paging', async ({ page }, testInfo) => {
-  const large = { all_champions: [...catalog.all_champions, ...Array.from({ length: 100 }, (_, index) => ({ id: 10000 + index, name: `Test champion ${index}` }))], pickable_champions: catalog.pickable_champions }
+  const extra = Array.from({ length: 100 }, (_, index) => ({ id: 10000 + index, name: `Test champion ${index}` }))
+  const large = { all_champions: [...catalog.all_champions, ...extra], pickable_champions: [...catalog.pickable_champions, ...extra] }
   await mockBackend(page, false, large)
   await page.goto('/')
   await expect(page.getByRole('button', { name: 'Aatrox seç', exact: true })).toBeEnabled()

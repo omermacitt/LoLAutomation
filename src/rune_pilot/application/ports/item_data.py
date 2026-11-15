@@ -1,0 +1,9 @@
+"""Static item-builder data contract."""
+
+from typing import Protocol
+
+
+class ItemData(Protocol):
+    def catalog(self) -> tuple[str, dict, dict]: ...
+    def champion_stats(self, alias: str, version: str) -> dict: ...
+    def icon(self, item_id: int, version: str) -> bytes: ...

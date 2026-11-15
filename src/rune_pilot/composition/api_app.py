@@ -16,6 +16,7 @@ from rune_pilot.application.champion_portrait_query import ChampionPortraitQuery
 from rune_pilot.application.champion_query import ChampionQuery
 from rune_pilot.application.config_service import ConfigService
 from rune_pilot.application.game_query_service import GameQueryService
+from rune_pilot.application.item_set_service import ItemSetService
 from rune_pilot.application.lobby_service import LobbyService
 from rune_pilot.application.perk_query import PerkQuery
 from rune_pilot.application.ports.league_client import LeagueClient
@@ -25,10 +26,12 @@ from rune_pilot.application.skin_artwork_query import SkinArtworkQuery
 from rune_pilot.application.skin_query import SkinQuery
 from rune_pilot.application.update_service import UpdateService
 from rune_pilot.composition.endpoints import register_routes
+from rune_pilot.composition.item_set_endpoints import register_item_set_routes
 from rune_pilot.composition.update_endpoints import register_update_routes
 from rune_pilot.domain.rune_editor import RunePage
 from rune_pilot.infrastructure.config_repository import ConfigRepository
 from rune_pilot.infrastructure.github_updates import GithubUpdateSource
+from rune_pilot.infrastructure.item_data import DragonItemData
 from rune_pilot.infrastructure.league_client_adapter import LcuLeagueClient
 from rune_pilot.shared.app_meta import UPDATE_REPO_DEFAULT, __version__
 
@@ -89,6 +92,7 @@ def create_app(
         )
     )
     repository = config_service.repository if config_service is not None else ConfigRepository()
+    application.state.item_sets = ItemSetService(DragonItemData(), repository, client)
     application.state.settings = (
         config_service if config_service is not None else ConfigService(repository)
     )
@@ -98,6 +102,7 @@ def create_app(
         else GameQueryService(
             champion_summary=partial(champions.get_champion_summary, strict=True),
             owned_champions=partial(champions.get_owned_champions_raw, strict=True),
+            champion_positions=champions.get_champion_positions,
             gameflow_phase=lobby.get_gameflow_phase_safe,
             skin_options=partial(skins.get_skin_options_for_champion, strict=True),
             perk_styles=perks.get_perk_styles,
@@ -123,6 +128,7 @@ def create_app(
     )
     register_routes(application)
     register_update_routes(application)
+    register_item_set_routes(application)
     return application
 
 

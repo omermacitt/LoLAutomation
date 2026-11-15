@@ -1,4 +1,11 @@
 [
+  {"method":"GET","pattern":"/item-builder/catalog","image":false},
+  {"method":"GET","pattern":"/item-builder/champions/[1-9][0-9]*","image":false},
+  {"method":"GET","pattern":"/item-builder/items/[1-9][0-9]*/icon","image":true},
+  {"method":"GET","pattern":"/item-sets","image":false},
+  {"method":"PUT","pattern":"/item-sets","image":false},
+  {"method":"GET","pattern":"/item-sets/client-state","image":false},
+  {"method":"POST","pattern":"/item-sets/runepilot-[a-f0-9-]{36}/export","image":false},
   {"method":"GET","pattern":"/health","image":false},
   {"method":"GET","pattern":"/settings","image":false},
   {"method":"PUT","pattern":"/settings","image":false},

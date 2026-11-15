@@ -88,6 +88,7 @@ h2 { font: 650 15px 'Manrope', sans-serif; }.section-title p { font-size: 10px; 
 .game-controls { border: 1px solid var(--line); background: #191620; border-radius: 10px; padding: 15px 18px; margin-bottom: 24px; display: flex; flex-wrap: wrap; gap: 16px; align-items: end; }
 .game-controls__fields { display: grid; grid-template-columns: 1.4fr 1fr 1fr; gap: 12px; flex: 1; min-width: 330px; }
 .game-field { display: grid; gap: 7px; min-width: 0; }
+.catalog-filter-note { margin:0 16px 12px; color:#b7a3c5; font-size:11px; line-height:1.5; }
 .game-field > span, .spell-editor label > span { font-size: 10px; color: #b7a3c5; }
 select { color: #e4d8ed; background: #201a29; border: 1px solid #463650; border-radius: 6px; padding: 8px 9px; font: inherit; font-size: 11px; width: 100%; min-width: 0; color-scheme: dark; }
 select:focus-visible { outline: 2px solid #bca0d7; outline-offset: 2px; }select:disabled { opacity: .45; }
