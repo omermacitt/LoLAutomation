@@ -1,5 +1,6 @@
 """Pure role assignment normalization and preset resolution. Missing differs from 0."""
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any
 
@@ -32,16 +33,30 @@ class RuneChoice:
 
 
 def resolve_rune_choice(config: dict, role: str, champion: int) -> RuneChoice:
+    return choose_rune_slot(
+        clean_role_rune_selection(config.get("role_rune_selection")),
+        config.get("rune_selection"),
+        config.get("custom_runes"),
+        role,
+        champion,
+    )
+
+
+def choose_rune_slot(
+    assignments: Mapping[str, Mapping[str, int]],
+    legacy: Any,
+    custom_runes: Any,
+    role: str,
+    champion: int,
+) -> RuneChoice:
+    """Role assignment wins, then the legacy per-champion choice; a missing preset is 0."""
     key = str(champion)
-    assignments = clean_role_rune_selection(config.get("role_rune_selection"))
     entries = assignments.get(role, {})
     explicit = key in entries
-    legacy = config.get("rune_selection")
-    slot = entries[key] if explicit else legacy.get(key, 0) if isinstance(legacy, dict) else 0
+    slot = entries[key] if explicit else legacy.get(key, 0) if isinstance(legacy, Mapping) else 0
     if type(slot) is not int or slot not in range(4):
         slot = 0
-    pages = config.get("custom_runes")
-    pages = pages.get(key, {}) if isinstance(pages, dict) else {}
+    pages = custom_runes.get(key, {}) if isinstance(custom_runes, Mapping) else {}
     if slot and (not isinstance(pages, dict) or not isinstance(pages.get(str(slot)), dict)):
         return RuneChoice(0, "role" if explicit else "default", missing=True)
     return RuneChoice(slot, "role" if explicit else "default")
