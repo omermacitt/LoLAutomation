@@ -10,15 +10,14 @@ from rune_pilot.application.ports.league_client import LeagueClient
 from rune_pilot.application.rune_service import RuneService
 from rune_pilot.application.selection_feedback import SelectionFeedback
 from rune_pilot.domain import rune_pages
+from rune_pilot.domain.automation_settings import AutomationSettings
 from rune_pilot.domain.champ_select import assigned_role, local_champion, local_player
 from rune_pilot.domain.champion_service import normalize_champion_id
 from rune_pilot.domain.rune_editor import RunePage
 from rune_pilot.domain.rune_rules import build_rune_page_name
-from rune_pilot.domain.rune_selection import resolve_rune_choice
 from rune_pilot.shared.utils import safe_int_list
 
 WRITE_OK = (200, 201, 204)
-RECOMMENDATION_QUEUES = (400, 420, 440)
 
 
 class InvalidRunePage(Exception):
@@ -43,7 +42,7 @@ class RuneApplier:
     def sync(
         self,
         session: dict[str, Any],
-        cfg: dict[str, Any],
+        settings: AutomationSettings,
         role: str,
         progress: AutomationProgress,
         should_run: Callable[[], bool],
@@ -52,7 +51,9 @@ class RuneApplier:
         locked = normalize_champion_id(local_player(session).get("championId"))
         if session.get("timer", {}).get("phase", "") == "FINALIZATION" and locked:
             rune_key = (role, locked)
-            if progress.rune_key != rune_key and self.apply(session, cfg, should_run=should_run):
+            if progress.rune_key != rune_key and self.apply(
+                session, settings, should_run=should_run
+            ):
                 progress.rune_key = rune_key
         else:
             progress.rune_key = None
@@ -71,7 +72,7 @@ class RuneApplier:
     def apply(
         self,
         session: dict[str, Any],
-        cfg: dict[str, Any],
+        settings: AutomationSettings,
         *,
         should_run: Callable[[], bool] = lambda: True,
     ) -> bool:
@@ -87,7 +88,7 @@ class RuneApplier:
         if champion == 0:
             return False
         try:
-            resolved = self._resolve(cfg, role, champion)
+            resolved = self._resolve(settings, role, champion)
             if resolved is None:
                 self._unavailable(role, champion)
                 print(f"[RUNES] No recommended runes found for championId={champion}")
@@ -125,17 +126,17 @@ class RuneApplier:
         )
 
     def _resolve(
-        self, cfg: dict[str, Any], role: str, champion: int
+        self, settings: AutomationSettings, role: str, champion: int
     ) -> tuple[dict, str, bool] | None:
         """(page, name prefix, used fallback) or None when no valid page exists."""
-        choice = resolve_rune_choice(cfg, role, champion)
+        choice = settings.rune_choice(role, champion)
         fallback = choice.missing
         if choice.slot in (1, 2, 3):
-            page = self._custom_page(cfg, champion, choice.slot)
+            page = self._custom_page(settings, champion, choice.slot)
             if page is not None:
                 return page, f"Custom {choice.slot}", fallback
             fallback = True
-        if cfg.get("queue_id", 400) not in RECOMMENDATION_QUEUES:
+        if not settings.recommendations_enabled:
             return None
         for recommended in self._runes.get_recommended_pages(champion, role):
             try:
@@ -144,10 +145,8 @@ class RuneApplier:
                 continue
         return None
 
-    def _custom_page(self, cfg: dict[str, Any], champion: int, slot: int) -> dict | None:
-        custom_runes = cfg.get("custom_runes") or {}
-        presets = custom_runes.get(str(champion)) if isinstance(custom_runes, dict) else None
-        stored = presets.get(str(slot)) if isinstance(presets, dict) else None
+    def _custom_page(self, settings: AutomationSettings, champion: int, slot: int) -> dict | None:
+        stored = settings.custom_rune_page(champion, slot)
         if not isinstance(stored, dict):
             print(
                 f"[RUNES] Custom rune preset not found slot={slot} championId={champion}, falling back to recommended"

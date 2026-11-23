@@ -16,6 +16,7 @@ from rune_pilot.application.lobby_service import LobbyService
 from rune_pilot.application.ports.league_client import LeagueClient
 from rune_pilot.application.rune_service import RuneService
 from rune_pilot.application.selection_feedback import SelectionFeedback
+from rune_pilot.domain.automation_settings import AutomationSettings
 from rune_pilot.domain.champ_select import assigned_role
 
 
@@ -56,7 +57,9 @@ class AutomationRunner:
         should_run: Callable[[], bool] = lambda: True,
     ) -> bool:
         """Applies the configured preset or a valid League recommendation for the actual champion."""
-        return self._runes.apply(session, cfg, should_run=should_run)
+        return self._runes.apply(
+            session, AutomationSettings.from_mapping(cfg), should_run=should_run
+        )
 
     def run(
         self,
@@ -87,8 +90,9 @@ class AutomationRunner:
                 if not cfg:
                     pause(1)
                     continue
+                settings = AutomationSettings.from_mapping(cfg)
                 if not self._iterate(
-                    cfg, snapshot.revision, progress, queue, champ_select, should_run, wait
+                    settings, snapshot.revision, progress, queue, champ_select, should_run, wait
                 ):
                     break
             except Exception as e:
@@ -99,7 +103,7 @@ class AutomationRunner:
 
     def _iterate(
         self,
-        cfg: dict[str, Any],
+        settings: AutomationSettings,
         revision: int,
         progress: AutomationProgress,
         queue: QueueStep,
@@ -108,7 +112,7 @@ class AutomationRunner:
         wait: Callable[[float], bool] | None,
     ) -> bool:
         """One pass over queue and champion select; False means cancellation."""
-        if not queue.run(cfg, should_run, wait):
+        if not queue.run(settings, should_run, wait):
             return False
 
         session = self._champ_select_session()
@@ -122,13 +126,13 @@ class AutomationRunner:
             return True
 
         role = assigned_role(session)
-        if not champ_select.run(session, cfg, role, should_run) or not should_run():
+        if not champ_select.run(session, settings, role, should_run) or not should_run():
             return False
-        self._runes.sync(session, cfg, role, progress, should_run)
+        self._runes.sync(session, settings, role, progress, should_run)
         if not should_run():
             return False
         return self._loadout.run(
-            session, cfg, role, champ_select.handoff_key is not None, progress, should_run
+            session, settings, role, champ_select.handoff_key is not None, progress, should_run
         )
 
     def _champ_select_session(self) -> dict[str, Any] | None:

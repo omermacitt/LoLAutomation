@@ -2,6 +2,7 @@
 
 from typing import Any
 
+from rune_pilot.domain.automation_settings import AutomationSettings
 from rune_pilot.domain.champion_service import normalize_champion_id, normalize_spell_id
 from rune_pilot.shared.utils import safe_int_list
 
@@ -59,28 +60,15 @@ def local_champion(session: dict) -> int:
     )
 
 
-def keyed_entry(mapping: Any, role: str, champion_id: int) -> Any:
-    """Read role -> champion entries saved with string keys, or integer keys from old clients."""
-    if not isinstance(mapping, dict):
-        return None
-    role_map = mapping.get(role)
-    if not isinstance(role_map, dict):
-        return None
-    entry = role_map.get(str(champion_id))
-    return role_map.get(champion_id) if entry is None else entry
-
-
-def resolve_spells(config: dict, role: str, champion_id: int) -> tuple[int | None, int | None]:
+def resolve_spells(
+    settings: AutomationSettings, role: str, champion_id: int
+) -> tuple[int | None, int | None]:
     """
     Champion-specific spells win per slot, then the role pair, then generic spells when
     the champion is the primary role's first preference (or no pools exist).
     """
-    role_entry, allow_global = spell_fallbacks(config, role, champion_id)
-    custom_entry = (
-        keyed_entry(config.get("custom_summoner_spells"), role, champion_id)
-        if champion_id
-        else None
-    )
+    role_entry, allow_global = spell_fallbacks(settings, role, champion_id)
+    custom_entry = settings.champion_spell_entry(role, champion_id) if champion_id else None
     has_s1, s1, has_s2, s2 = extract_spell_pair(custom_entry)
     role_has_s1, role_s1, role_has_s2, role_s2 = extract_spell_pair(role_entry)
     if not has_s1 and role_has_s1:
@@ -88,22 +76,21 @@ def resolve_spells(config: dict, role: str, champion_id: int) -> tuple[int | Non
     if not has_s2 and role_has_s2:
         has_s2, s2 = True, role_s2
     if not has_s1 and allow_global:
-        s1 = normalize_spell_id(config.get("primary_summoner_spell"))
+        s1 = settings.primary_spell
     if not has_s2 and allow_global:
-        s2 = normalize_spell_id(config.get("secondary_summoner_spell"))
+        s2 = settings.secondary_spell
     return s1, s2
 
 
-def spell_fallbacks(config: dict, role: str, champion_id: int) -> tuple[Any, bool]:
+def spell_fallbacks(settings: AutomationSettings, role: str, champion_id: int) -> tuple[Any, bool]:
     """First-preference-derived defaults must not leak to a replacement champion."""
-    pools = config.get("role_champions") or {}
-    role_map = config.get("role_summoner_spells") or {}
-    entry = role_map.get(role) if isinstance(role_map, dict) else None
+    pools = settings.role_champions
+    entry = settings.role_spells.get(role)
     if not pools:  # Older API clients may supply explicit generic spell pairs.
         return entry, True
-    preferences = safe_int_list(pools.get(role))
-    primary = str(config.get("primary_role") or "").upper()
-    primary_preferences = safe_int_list(pools.get(primary))
+    preferences = safe_int_list(list(pools.get(role, ())))
+    primary = settings.primary_role
+    primary_preferences = safe_int_list(list(pools.get(primary, ())))
     role_matches = bool(preferences and preferences[0] == champion_id)
     global_matches = bool(
         role == primary and primary_preferences and primary_preferences[0] == champion_id

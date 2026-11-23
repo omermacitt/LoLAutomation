@@ -5,6 +5,7 @@ from typing import Any
 
 from rune_pilot.application.lobby_service import LobbyService
 from rune_pilot.application.selection_feedback import SelectionFeedback
+from rune_pilot.domain.automation_settings import AutomationSettings
 from rune_pilot.domain.champ_select import local_player, open_pick_action
 from rune_pilot.domain.champion_service import normalize_champion_id
 
@@ -29,23 +30,15 @@ class ChampSelectStep:
     def run(
         self,
         session: dict[str, Any],
-        cfg: dict[str, Any],
+        settings: AutomationSettings,
         role: str,
         should_run: Callable[[], bool],
     ) -> bool:
         """Returns False when cancellation interrupted the step."""
-        fallback_role = str(cfg.get("primary_role", "")).upper()
-        role_bans = cfg.get("role_bans") or {}
-        ban_id = normalize_champion_id(role_bans.get(role)) if role else None
-        if ban_id is None and role == "":
-            ban_id = normalize_champion_id(role_bans.get(fallback_role))
+        ban_id = settings.ban_for(role)
         if ban_id is not None:
             self._lobby.do_ban(session, ban_id, should_run=should_run)
-
-        role_champions = cfg.get("role_champions") or {}
-        preferences = role_champions.get(role, [])
-        if not preferences and role == "":
-            preferences = role_champions.get(fallback_role, [])
+        preferences = list(settings.preferences_for(role))
 
         player = local_player(session)
         action = open_pick_action(session, active_only=False)
@@ -68,7 +61,7 @@ class ChampSelectStep:
                     self._feedback.publish(
                         action_key,
                         "manual_hover" if status == "manual_selection" else status,
-                        role or str(cfg.get("primary_role") or "").upper(),
+                        settings.effective_role(role),
                         normalize_champion_id(player.get("championPickIntent")),
                     )
                 else:
